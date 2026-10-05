@@ -1,4 +1,4 @@
-// script.js - Banco Pedro Carbo (Completo con cuentas, verificación automática, tarjeta virtual y gestión de deudas)
+// script.js - Banco Pedro Carbo (Completo con cuentas, verificación, teléfono obligatorio y deudas)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { 
@@ -14,6 +14,7 @@ import {
     doc, 
     getDoc, 
     setDoc, 
+    updateDoc,
     collection, 
     addDoc, 
     onSnapshot, 
@@ -38,7 +39,7 @@ const db = getFirestore(app);
 
 let currentUser = null;
 let currentBalance = 0.00;
-let currentDeuda = 0.00; // <--- Variable global para la deuda o saldo pendiente
+let currentDeuda = 0.00;
 let currentUserData = null;
 let selectedProduct = null;
 
@@ -74,7 +75,7 @@ if (btnToLogin) {
     });
 }
 
-// Registro con envío automático de correo de verificación
+// Registro con envío automático de correo y captura de TELÉFONO
 if (registerView) {
     registerView.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -82,6 +83,7 @@ if (registerView) {
         const name = document.getElementById("regName").value;
         const email = document.getElementById("regEmail").value;
         const password = document.getElementById("regPassword").value;
+        const telefono = document.getElementById("regTelefono") ? document.getElementById("regTelefono").value.trim() : "";
         const numeroCuentaGenerado = "55" + Math.floor(10000000 + Math.random() * 90000000);
 
         try {
@@ -95,9 +97,10 @@ if (registerView) {
             await setDoc(doc(db, "usuarios", userCred.user.uid), {
                 nombre: name,
                 email: email,
+                telefono: telefono, // <--- Guardado de teléfono
                 numeroCuenta: numeroCuentaGenerado,
                 saldo: 0.00,
-                deuda: 0.00, // Inicializar deuda en 0
+                deuda: 0.00,
                 creado: serverTimestamp()
             });
 
@@ -138,7 +141,7 @@ if (btnLogout) {
     });
 }
 
-// Auth State Observer mejorado con validación de correo verificado
+// Auth State Observer con validación de Teléfono para usuarios antiguos
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         if (!user.emailVerified) {
@@ -148,20 +151,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         currentUser = user;
-        if (authScreen) authScreen.classList.add("hidden");
-        if (appScreen) appScreen.classList.remove("hidden");
         
-        const name = user.displayName || "Usuario";
-        const userNameDisplay = document.getElementById("userNameDisplay");
-        const userAvatar = document.getElementById("userAvatar");
-        const dashBalance = document.getElementById("dashBalance");
-        const dashDeuda = document.getElementById("dashDeuda");
-
-        if (userNameDisplay) userNameDisplay.textContent = name;
-        if (userAvatar) userAvatar.textContent = name.substring(0, 2).toUpperCase();
-        if (dashBalance) dashBalance.textContent = "Cargando...";
-        if (dashDeuda) dashDeuda.textContent = "Cargando...";
-
         try {
             const userRef = doc(db, "usuarios", user.uid);
             const userDoc = await getDoc(userRef);
@@ -169,8 +159,19 @@ onAuthStateChanged(auth, async (user) => {
             if (userDoc.exists()) {
                 currentUserData = userDoc.data();
                 currentBalance = currentUserData.saldo ?? 0.00;
-                currentDeuda = currentUserData.deuda ?? 0.00; // <--- Carga la deuda actual
+                currentDeuda = currentUserData.deuda ?? 0.00;
                 
+                // VALIDACIÓN DE USUARIOS ANTIGUOS SIN TELÉFONO
+                if (!currentUserData.telefono || currentUserData.telefono === "") {
+                    // Muestra la pantalla o modal obligatorio para teléfonos faltantes
+                    const modalAntiguos = document.getElementById("modalTelefonoAntiguos");
+                    if (modalAntiguos) {
+                        modalAntiguos.style.display = "flex";
+                        modalAntiguos.classList.remove("hidden");
+                    }
+                    return; // Detiene la carga normal hasta que lo complete
+                }
+
                 if (!currentUserData.numeroCuenta || currentUserData.numeroCuenta === "") {
                     const nuevoNumeroCuenta = "55" + Math.floor(10000000 + Math.random() * 90000000);
                     await setDoc(userRef, { numeroCuenta: nuevoNumeroCuenta }, { merge: true });
@@ -183,17 +184,29 @@ onAuthStateChanged(auth, async (user) => {
                 currentBalance = 0.00;
                 currentDeuda = 0.00;
             }
+
+            // Si todo está correcto, pasa a la app principal
+            if (authScreen) authScreen.classList.add("hidden");
+            if (appScreen) appScreen.classList.remove("hidden");
+
+            const name = user.displayName || "Usuario";
+            const userNameDisplay = document.getElementById("userNameDisplay");
+            const userAvatar = document.getElementById("userAvatar");
+
+            if (userNameDisplay) userNameDisplay.textContent = name;
+            if (userAvatar) userAvatar.textContent = name.substring(0, 2).toUpperCase();
+
             updateBalanceUI();
+            cargarProductosTienda();
+            cargarMovimientosUsuario(user.uid);
+            verificarYCargarTarjeta(user, db);
+
         } catch(e) { 
             console.error("Error al cargar datos del usuario:", e);
             currentBalance = 0.00;
             currentDeuda = 0.00;
             updateBalanceUI();
         }
-
-        cargarProductosTienda();
-        cargarMovimientosUsuario(user.uid);
-        verificarYCargarTarjeta(user, db);
 
     } else {
         currentUser = null;
@@ -202,6 +215,41 @@ onAuthStateChanged(auth, async (user) => {
         if (authScreen) authScreen.classList.remove("hidden");
     }
 });
+
+// EVENTO PARA GUARDAR EL TELÉFONO DE USUARIOS ANTIGUOS
+const formUpdateTelefono = document.getElementById("formUpdateTelefono");
+if (formUpdateTelefono) {
+    formUpdateTelefono.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const inputTelAntiguo = document.getElementById("oldUserPhone");
+        const nuevoTelefono = inputTelAntiguo ? inputTelAntiguo.value.trim() : "";
+
+        if (!nuevoTelefono || nuevoTelefono.length < 7) {
+            showToast("Ingresa un número de teléfono válido", "error");
+            return;
+        }
+
+        if (!currentUser) return;
+
+        try {
+            await setDoc(doc(db, "usuarios", currentUser.uid), {
+                telefono: nuevoTelefono
+            }, { merge: true });
+
+            const modalAntiguos = document.getElementById("modalTelefonoAntiguos");
+            if (modalAntiguos) {
+                modalAntiguos.style.display = "none";
+                modalAntiguos.classList.add("hidden");
+            }
+
+            showToast("¡Teléfono registrado con éxito!");
+            location.reload(); // Recarga para entrar de lleno a la app
+        } catch (error) {
+            console.error("Error al actualizar teléfono:", error);
+            showToast("No se pudo guardar el teléfono", "error");
+        }
+    });
+}
 
 function updateBalanceUI() {
     const dashBalance = document.getElementById("dashBalance");
@@ -246,7 +294,7 @@ if (mobileMenu) {
 }
 
 // ==========================================
-// TRANSFERENCIAS: INTERNA (AUTOMÁTICA) Y EXTERNA (POR HUMANO)
+// TRANSFERENCIAS
 // ==========================================
 const formTransferencia = document.getElementById("formTransferencia");
 
@@ -291,7 +339,6 @@ if (formTransferencia) {
                         return;
                     }
 
-                    // APLICAR LÓGICA DE COBRO AUTOMÁTICO DE DEUDA EN DESTINO SI TUVIERA PENDIENTE
                     let saldoBen = beneficiarioData.saldo || 0;
                     let deudaBen = beneficiarioData.deuda || 0;
                     let montoNetoBen = monto;
@@ -360,78 +407,7 @@ if (formTransferencia) {
     });
 }
 
-// ==========================================
-// FUNCIÓN PARA QUE EL ADMIN PRESTE DINERO O REGISTRE DEUDA
-// ==========================================
-window.adminPrestarDinero = async function(userIdUser, montoPrestamo) {
-    const userRef = doc(db, "usuarios", userIdUser);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) return;
-
-    const data = userSnap.data();
-    const deudaActual = data.deuda || 0;
-    const saldoActual = data.saldo || 0;
-
-    // Incrementa la deuda y le abona el saldo para que pueda usarlo
-    await setDoc(userRef, {
-        deuda: deudaActual + montoPrestamo,
-        saldo: saldoActual + montoPrestamo 
-    }, { merge: true });
-
-    await addDoc(collection(db, "transacciones"), {
-        userId: userIdUser,
-        title: "Préstamo / Saldo Pendiente Asignado",
-        category: "Otorgado por Administrador",
-        amount: montoPrestamo,
-        date: new Date().toLocaleString(),
-        timestamp: serverTimestamp()
-    });
-}
-
-// ==========================================
-// FUNCIÓN PARA PROCESAR DEPÓSITOS Y COBRAR DEUDA EXACTA
-// ==========================================
-window.procesarDepositoConCobroDeuda = async function(userId, montoDepositado) {
-    const userRef = doc(db, "usuarios", userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) return;
-    let data = userSnap.data();
-    let saldoActual = data.saldo || 0;
-    let deudaActual = data.deuda || 0;
-
-    let montoNetoAIngresar = montoDepositado;
-
-    // Si tiene deuda pendiente, el depósito cubre la deuda primero de forma exacta
-    if (deudaActual > 0) {
-        if (montoDepositado >= deudaActual) {
-            montoNetoAIngresar = montoDepositado - deudaActual;
-            saldoActual += montoNetoAIngresar;
-            deudaActual = 0; // Deuda saldada por completo
-        } else {
-            deudaActual -= montoDepositado;
-            montoNetoAIngresar = 0; // Todo el depósito se aplicó a la deuda
-        }
-    } else {
-        saldoActual += montoDepositado;
-    }
-
-    await setDoc(userRef, {
-        saldo: saldoActual,
-        deuda: deudaActual
-    }, { merge: true });
-
-    await addDoc(collection(db, "transacciones"), {
-        userId: userId,
-        title: "Depósito / Ajuste de Saldo",
-        category: `Monto recibido: $${montoDepositado.toFixed(2)} (Cobro de deuda aplicado automáticamente)`,
-        amount: montoDepositado,
-        date: new Date().toLocaleString(),
-        timestamp: serverTimestamp()
-    });
-}
-
-// Cargar productos de la tienda dinámicamente desde Firestore
+// Cargar productos de la tienda dinámicamente
 function cargarProductosTienda() {
     onSnapshot(collection(db, "productos_tienda"), (snapshot) => {
         let ffHtml = "";
@@ -441,7 +417,7 @@ function cargarProductosTienda() {
         const claroContainer = document.getElementById("claroContainer");
 
         if (snapshot.empty) {
-            const emptyMsg = `<p style="color: var(--text-muted); grid-column: 1/-1;">No hay productos disponibles por el momento.</p>`;
+            const emptyMsg = `<p style="color: var(--text-muted); grid-column: 1/-1;">No hay productos disponibles.</p>`;
             if (ffContainer) ffContainer.innerHTML = emptyMsg;
             if (claroContainer) claroContainer.innerHTML = emptyMsg;
             return;
@@ -634,7 +610,7 @@ function renderizarTarjetaHTML(tData, container, user, db) {
     `;
 }
 
-// Historial de Movimientos y apertura de factura/comprobante
+// Historial de Movimientos
 function cargarMovimientosUsuario(userId) {
     const movementsContainer = document.getElementById("userMovementsList");
     if (!movementsContainer) return;
@@ -645,7 +621,7 @@ function cargarMovimientosUsuario(userId) {
         let html = "";
 
         if (snapshot.empty) {
-            movementsContainer.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 1rem;">No tienes movimientos registrados todavía.</p>`;
+            movementsContainer.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 1rem;">No tienes movimientos registrados.</p>`;
             return;
         }
 
@@ -701,15 +677,13 @@ function cargarMovimientosUsuario(userId) {
 
                     modalFactura.style.display = "flex";
                     modalFactura.classList.remove("hidden");
-                } else {
-                    alert(`Comprobante:\n${title}\nDetalle: ${category}\nMonto: $${amount}\nFecha: ${date}\nEstado: ${estado}`);
                 }
             });
         });
     });
 }
 
-// Detección de dispositivo (Móvil vs PC)
+// Detección de dispositivo
 document.addEventListener("DOMContentLoaded", () => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
     const body = document.body;
