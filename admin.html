@@ -10,21 +10,21 @@
 </head>
 <body style="display: block; padding: 2rem;">
 
-    <div style="max-width: 1000px; margin: 0 auto;">
+    <div style="max-width: 1100px; margin: 0 auto;">
         <header style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h2><i class="fa-solid fa-user-shield" style="color: var(--primary);"></i> Panel Admin - Banco Pedro Carbo</h2>
-                <p style="color: var(--text-muted); font-size: 0.85rem;">Gestión de saldos, productos, verificación de transferencias y auditoría</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Gestión de saldos, préstamos, deudas, productos y transferencias</p>
             </div>
             <a href="index.html" class="btn" style="width: auto; padding: 0.6rem 1rem; background: var(--bg-card-hover);"><i class="fa-solid fa-arrow-left"></i> Ir a la Banca</a>
         </header>
 
-        <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
             
             <!-- GESTIÓN DE SALDOS DE USUARIOS -->
             <div class="card-box">
                 <h3><i class="fa-solid fa-wallet"></i> Administrar Saldo de Usuario</h3>
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Agrega o quita dinero a las cuentas de los usuarios.</p>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Agrega o quita dinero (aplica cobro automático de deuda si el usuario posee).</p>
                 <form id="adminBalanceForm">
                     <div class="form-group">
                         <label>Seleccionar Usuario</label>
@@ -48,6 +48,29 @@
                         <input type="text" id="adminBalanceReason" class="form-control" placeholder="Ej. Depósito en ventanilla, Bono inicial..." required>
                     </div>
                     <button type="submit" class="btn">Aplicar Cambios en la Cuenta</button>
+                </form>
+            </div>
+
+            <!-- GESTIÓN DE PRÉSTAMOS / DEUDAS -->
+            <div class="card-box">
+                <h3><i class="fa-solid fa-hand-holding-dollar" style="color: var(--warning, #f59e0b);"></i> Otorgar Préstamo / Registrar Deuda</h3>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Asigna saldo prestado que quedará registrado como deuda pendiente.</p>
+                <form id="adminLoanForm">
+                    <div class="form-group">
+                        <label>Seleccionar Usuario</label>
+                        <select id="adminLoanSelectUser" class="form-control" required>
+                            <option value="">Cargando usuarios...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Monto del Préstamo ($ USD)</label>
+                        <input type="number" step="0.01" id="adminLoanAmount" class="form-control" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Descripción / Observación</label>
+                        <input type="text" id="adminLoanReason" class="form-control" placeholder="Ej. Préstamo express, Crédito educativo..." required>
+                    </div>
+                    <button type="submit" class="btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);">Otorgar Préstamo y Sumar Deuda</button>
                 </form>
             </div>
 
