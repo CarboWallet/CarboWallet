@@ -102,19 +102,27 @@
 
             <div class="content-body">
                 <!-- SECCIÓN: INICIO / DASHBOARD -->
-                <div id="section-dashboard" class="section-view active">
-                    <div class="dashboard-grid">
-                        <div class="card-box balance-card">
-                            <p style="color: var(--text-muted); font-size: 0.85rem;">Saldo Disponible</p>
-                            <h1 id="dashBalance" style="font-size: 2.2rem; margin: 0.5rem 0; letter-spacing: -1px;">$0.00</h1>
-                            <p style="font-size: 0.8rem; color: var(--success);"><i class="fa-solid fa-shield-check"></i> Cuenta Activa en Tiempo Real</p>
-                        </div>
-                        <div class="card-box" style="display: flex; flex-direction: column; justify-content: center;">
-                            <h3>Bienvenido a tu Banca Móvil</h3>
-                            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Administra tus fondos de forma segura, realiza transferencias interbancarias o adquiere diamantes y recargas de manera instantánea en Pedro Carbo.</p>
-                        </div>
-                    </div>
-                </div>
+<div id="section-dashboard" class="section-view active">
+    <div class="dashboard-grid">
+        <div class="card-box balance-card">
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Saldo Disponible</p>
+            <h1 id="dashBalance" style="font-size: 2.2rem; margin: 0.5rem 0; letter-spacing: -1px;">$0.00</h1>
+            <p style="font-size: 0.8rem; color: var(--success);"><i class="fa-solid fa-shield-check"></i> Cuenta Activa en Tiempo Real</p>
+        </div>
+
+        <!-- NUEVA TARJETA DE DEUDA / SALDO PENDIENTE -->
+        <div class="card-box" style="background: linear-gradient(135deg, #2a1e1e 0%, #0f172a 100%); border: 1px solid var(--danger);">
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Deuda / Saldo Pendiente</p>
+            <h1 id="dashDeuda" style="font-size: 2.2rem; margin: 0.5rem 0; letter-spacing: -1px; color: var(--danger);">$0.00</h1>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Se descontará automáticamente de tus próximos depósitos</p>
+        </div>
+
+        <div class="card-box" style="display: flex; flex-direction: column; justify-content: center; grid-column: 1 / -1;">
+            <h3>Bienvenido a tu Banca Móvil</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Administra tus fondos de forma segura, realiza transferencias interbancarias o adquiere diamantes y recargas de manera instantánea en Pedro Carbo.</p>
+        </div>
+    </div>
+</div>
 
                 <!-- SECCIÓN DE TRANSFERENCIAS -->
                 <div id="section-transfer" class="section-view">
