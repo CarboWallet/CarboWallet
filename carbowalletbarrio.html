@@ -110,10 +110,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Número de Cédula / Cuenta</label>
+                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">ID de Usuario Firestore / Cédula</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-id-card"></i></span>
-                            <input type="text" id="txt-cuenta" maxlength="15" placeholder="Número de cuenta o cédula" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                            <input type="text" id="txt-cuenta" maxlength="35" placeholder="UID exacto del usuario en Firestore" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
                         </div>
                     </div>
 
@@ -200,10 +200,11 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs & Script de Lógica -->
+    <!-- Firebase SDKs y Lógica Integrada -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ4f1wD8W3WOoZANRO5KvOJW2gfP_wwE",
@@ -216,6 +217,7 @@
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
+        const db = getFirestore(app);
 
         // --- SISTEMA DE DETECCIÓN DE CONEXIÓN A INTERNET (BARRA DE ESTADO) ---
         function actualizarEstadoConexion() {
@@ -251,7 +253,6 @@
             // Observador de Estado de Sesión Firebase
             onAuthStateChanged(auth, (user) => {
                 if (user) {
-                    // Validar correo exclusivo
                     if (user.email === "jeremymatiasdelrosario@gmail.com") {
                         document.getElementById('auth-screen').classList.add('hidden');
                         document.getElementById('mobile-app').classList.remove('hidden');
@@ -295,14 +296,12 @@
         window.cerrarSesion = async function() {
             await signOut(auth);
         }
-    </script>
 
-    <!-- Script de Operaciones de Caja -->
-    <script>
+        // --- LÓGICA DE OPERACIONES Y FIRESTORE ---
         let operacionActual = '';
         let claveGeneradaSMS = '';
 
-        function setOperation(tipo) {
+        window.setOperation = function(tipo) {
             operacionActual = tipo;
             document.getElementById('lbl-operacion').innerText = `Operación: ${tipo}`;
             document.getElementById('step-menu').classList.add('hidden');
@@ -311,7 +310,7 @@
             document.getElementById('step-voucher').classList.add('hidden');
         }
 
-        function resetForm() {
+        window.resetForm = function() {
             document.getElementById('txt-cuenta').value = '';
             document.getElementById('txt-celular').value = '';
             document.getElementById('txt-monto').value = '';
@@ -323,11 +322,11 @@
             document.getElementById('step-voucher').classList.add('hidden');
         }
 
-        function verificarBanco() {
+        window.verificarBanco = function() {
             const banco = document.getElementById('sel-banco').value;
             const label = document.getElementById('lbl-cuenta-cedula');
             if (banco === 'CARBOWALLET') {
-                label.innerText = "Número de Cédula / Cuenta (Mismo Banco)";
+                label.innerText = "ID de Usuario Firestore / Cédula";
             } else {
                 label.innerText = "Número de Cuenta (Otro Banco)";
             }
@@ -340,7 +339,7 @@
             return `${inicio}X7XXX83X${fin}X`;
         }
 
-        function continuarProceso() {
+        window.continuarProceso = function() {
             const cuenta = document.getElementById('txt-cuenta').value;
             const celular = document.getElementById('txt-celular').value;
             const monto = document.getElementById('txt-monto').value;
@@ -358,14 +357,14 @@
             }
         }
 
-        function enviarClaveSMS() {
+        window.enviarClaveSMS = function() {
             const celular = document.getElementById('txt-celular').value;
             claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
             alert(`[SIMULACIÓN SMS] Clave temporal de 6 dígitos enviada al celular ${celular}\n(Clave generada para prueba: ${claveGeneradaSMS})`);
             document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
         }
 
-        function verificarClaveRetiro() {
+        window.verificarClaveRetiro = function() {
             const ingresada = document.getElementById('txt-clave-ingresada').value;
             if (ingresada !== String(claveGeneradaSMS)) {
                 alert('Clave temporal incorrecta o expirada. Verifique con el cliente.');
@@ -374,21 +373,56 @@
             generarVoucherFinal();
         }
 
-        function generarVoucherFinal() {
+        async function generarVoucherFinal() {
             const banco = document.getElementById('sel-banco').value;
-            const cuentaInput = document.getElementById('txt-cuenta').value;
-            const celular = document.getElementById('txt-celular').value;
-            const monto = document.getElementById('txt-monto').value;
+            const cuentaInput = document.getElementById('txt-cuenta').value.trim();
+            const celular = document.getElementById('txt-celular').value.trim();
+            const montoStr = document.getElementById('txt-monto').value;
+            const monto = parseFloat(montoStr);
 
+            if (isNaN(monto) || monto <= 0) {
+                alert('Ingrese un monto válido.');
+                return;
+            }
+
+            // Actualización de saldo en Firestore si es CarboWallet (Mismo Banco)
+            if (banco === 'CARBOWALLET') {
+                try {
+                    const userRef = doc(db, "usuarios", cuentaInput);
+                    const userSnap = await getDoc(userRef);
+
+                    if (userSnap.exists()) {
+                        if (operacionActual === 'DEPOSITO') {
+                            await updateDoc(userRef, { saldo: increment(monto) });
+                        } else if (operacionActual === 'RETIRO' || operacionActual === 'TRANSFERENCIA') {
+                            const saldoActual = userSnap.data().saldo || 0;
+                            if (saldoActual < monto) {
+                                alert('Error: El usuario no tiene suficiente saldo para esta operación.');
+                                return;
+                            }
+                            await updateDoc(userRef, { saldo: increment(-monto) });
+                        }
+                    } else {
+                        alert('Aviso: El ID de usuario no existe en la base de datos de usuarios de Firestore. Verifique el código ingresado.');
+                        return;
+                    }
+                } catch (error) {
+                    console.error("Error al actualizar Firestore:", error);
+                    alert("Error de permisos o red al actualizar el saldo en la base de datos.");
+                    return;
+                }
+            }
+
+            // Renderizado de datos del comprobante
             document.getElementById('v-tipo').innerText = operacionActual;
             document.getElementById('v-auth').innerText = Math.floor(100000 + Math.random() * 900000);
             document.getElementById('v-celular').innerText = celular;
-            document.getElementById('v-monto').innerText = `$ ${parseFloat(monto).toFixed(2)}`;
+            document.getElementById('v-monto').innerText = `$ ${monto.toFixed(2)}`;
 
             if (banco === 'CARBOWALLET') {
                 document.getElementById('v-banco-tipo').innerText = "CarboWallet (Local)";
-                document.getElementById('v-lbl-beneficiario').innerText = "TITULAR:";
-                document.getElementById('v-beneficiario').innerText = "JEREMY M. DEL ROSARIO"; 
+                document.getElementById('v-lbl-beneficiario').innerText = "ID USUARIO:";
+                document.getElementById('v-beneficiario').innerText = cuentaInput; 
             } else {
                 document.getElementById('v-banco-tipo').innerText = "Otro Banco (Interbancario)";
                 document.getElementById('v-lbl-beneficiario').innerText = "CUENTA DESTINO:";
