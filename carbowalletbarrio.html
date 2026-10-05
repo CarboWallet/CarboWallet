@@ -116,10 +116,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Número de Cuenta / Cédula</label>
+                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">ID de Usuario / Cédula en Firestore</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-id-card"></i></span>
-                            <input type="text" id="txt-cuenta" maxlength="35" placeholder="Número de cuenta o cédula" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                            <input type="text" id="txt-cuenta" maxlength="50" placeholder="Ej: uid_usuario_123 o cédula" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
                         </div>
                     </div>
 
@@ -210,7 +210,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ4f1wD8W3WOoZANRO5KvOJW2gfP_wwE",
@@ -292,7 +292,7 @@
                     errBox.classList.add('hidden');
                 } catch (error) {
                     errBox.textContent = "Credenciales incorrectas o error de conexión.";
-                    errBox.classList.remove('hidden');
+                    errBox.classList.remove('hiddenpx');
                 }
             });
         }
@@ -351,7 +351,7 @@
             const banco = document.getElementById('sel-banco').value;
             const label = document.getElementById('lbl-cuenta-cedula');
             if (banco === 'CARBOWALLET') {
-                label.innerText = "Número de Cuenta / Cédula";
+                label.innerText = "ID de Usuario / Cédula en Firestore";
             } else {
                 label.innerText = "Número de Cuenta (Otro Banco)";
             }
@@ -413,45 +413,30 @@
             if (banco === 'CARBOWALLET') {
                 try {
                     mostrarBarraEstado("Conectado a CarboWallet...", "proceso");
-                    await new Promise(r => setTimeout(r, 600)); // Breve pausa visual de conexión
+                    await new Promise(r => setTimeout(r, 400));
 
                     mostrarBarraEstado("Comprobando el saldo del depósito...", "proceso");
 
-                    // Buscar el documento por UID directo o buscando en campos de cuenta/cedula
-                    let userRef = null;
-                    let userSnap = null;
-
-                    const directRef = doc(db, "usuarios", cuentaInput);
-                    const directSnap = await getDoc(directRef);
-
-                    if (directSnap.exists()) {
-                        userRef = directRef;
-                        userSnap = directSnap;
-                    } else {
-                        // Buscar por campo cédula o número de cuenta si existe en la colección
-                        const qCedula = query(collection(db, "usuarios"), where("cedula", "==", cuentaInput));
-                        const querySnap = await getDocs(qCedula);
-                        if (!querySnap.empty) {
-                            userSnap = querySnap.docs[0];
-                            userRef = userSnap.ref;
-                        } else {
-                            const qCuenta = query(collection(db, "usuarios"), where("cuenta", "==", cuentaInput));
-                            const qCuentaSnap = await getDocs(qCuenta);
-                            if (!qCuentaSnap.empty) {
-                                userSnap = qCuentaSnap.docs[0];
-                                userRef = userSnap.ref;
-                            }
-                        }
-                    }
-
-                    if (!userSnap || !userRef) {
-                        mostrarBarraEstado("Error 505: Cuenta o cédula no encontrada", "error");
-                        return;
-                    }
+                    const userRef = doc(db, "usuarios", cuentaInput);
+                    const userSnap = await getDoc(userRef);
 
                     if (operacionActual === 'DEPOSITO') {
-                        await updateDoc(userRef, { saldo: increment(monto) });
-                    } else if (operacionActual === 'RETIRO' || operacionActual === 'TRANSFERENCIA') {
+                        if (!userSnap.exists()) {
+                            // Si no existe, lo creamos con setDoc gracias a las nuevas reglas permitidas para staff
+                            await setDoc(userRef, { 
+                                saldo: monto, 
+                                celular: celular, 
+                                cedula: cuentaInput,
+                                fechaCreacion: new Date().toISOString() 
+                            });
+                        } else {
+                            await updateDoc(userRef, { saldo: increment(monto) });
+                        }
+                    } else {
+                        if (!userSnap.exists()) {
+                            mostrarBarraEstado("Error 505: Cuenta o ID no encontrado", "error");
+                            return;
+                        }
                         const saldoActual = userSnap.data().saldo || 0;
                         if (saldoActual < monto) {
                             mostrarBarraEstado("Error 505: Fondos insuficientes", "error");
@@ -466,8 +451,9 @@
                     generarVoucherFinal(cuentaInput, celular, monto, banco);
 
                 } catch (error) {
-                    console.error("Error en Firestore:", error);
-                    mostrarBarraEstado("Error 505: Fallo de conexión o permisos", "error");
+                    // Imprimimos el error real en la consola del navegador (F12) para depurar
+                    console.error("Detalle técnico del error en Firestore:", error);
+                    mostrarBarraEstado(`Error 505: ${error.code || 'Fallo de permisos'}`, "error");
                 }
             } else {
                 // Otro banco (Interbancario)
@@ -486,7 +472,7 @@
 
             if (banco === 'CARBOWALLET') {
                 document.getElementById('v-banco-tipo').innerText = "CarboWallet (Local)";
-                document.getElementById('v-lbl-beneficiario').innerText = "CUENTA / CÉDULA:";
+                document.getElementById('v-lbl-beneficiario').innerText = "ID / CÉDULA:";
                 document.getElementById('v-beneficiario').innerText = cuentaInput; 
             } else {
                 document.getElementById('v-banco-tipo').innerText = "Otro Banco (Interbancario)";
