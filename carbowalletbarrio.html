@@ -10,24 +10,21 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
-    <!-- Contenedor de Bloqueo para PC (Oculto por defecto, se muestra si no es Android) -->
+    <!-- Contenedor de Bloqueo para PC -->
     <div id="desktop-block" class="hidden w-full max-w-md bg-slate-800 border-4 border-red-700 rounded-2xl shadow-2xl p-8 text-center space-y-4">
         <div class="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto text-3xl">
             <i class="fa-solid fa-triangle-exclamation"></i>
         </div>
         <h2 class="text-xl font-bold text-red-400">Dispositivo No Compatible</h2>
         <p class="text-sm text-slate-300">
-            Esta versión de <strong>CarboWallet Barrio</strong> está diseñada exclusivamente para terminales y dispositivos móviles <strong>Android</strong>.
-        </p>
-        <p class="text-xs text-slate-500 bg-slate-900 p-3 rounded-xl">
-            Por favor, abra este enlace desde un celular o tablet Android autorizado para operar como Corresponsal.
+            Esta versión de <strong>CarboWallet Barrio</strong> está diseñada exclusivamente para terminales móviles <strong>Android</strong>.
         </p>
     </div>
 
-    <!-- Contenedor Principal (Simulación de Terminal POS / App Android) -->
+    <!-- Contenedor Principal App Android -->
     <div id="mobile-app" class="hidden w-full max-w-md bg-slate-800 border-4 border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
         
-        <!-- Cabecera del POS / Corresponsal -->
+        <!-- Cabecera -->
         <div class="bg-emerald-600 px-6 py-4 flex justify-between items-center border-b border-emerald-700">
             <div>
                 <h1 class="font-bold text-lg tracking-wide flex items-center gap-2">
@@ -41,47 +38,49 @@
             </div>
         </div>
 
-        <!-- Pantalla de Interfaz / Formulario -->
-        <div class="p-6 space-y-5" id="app-container">
+        <!-- Cuerpo de la App -->
+        <div class="p-6 space-y-5">
             
-            <!-- Selector de Operación -->
+            <!-- Menú Principal -->
             <div id="step-menu" class="space-y-3">
                 <p class="text-sm font-medium text-slate-300">Seleccione la transacción:</p>
                 <div class="grid grid-cols-1 gap-3">
                     <button onclick="setOperation('DEPOSITO')" class="flex items-center justify-between p-4 bg-slate-700 hover:bg-emerald-600/30 border border-slate-600 hover:border-emerald-500 rounded-xl transition font-semibold text-left">
-                        <span class="flex items-center gap-3">
-                            <i class="fa-solid fa-circle-down text-emerald-400 text-xl"></i> Depósito en Efectivo
-                        </span>
+                        <span class="flex items-center gap-3"><i class="fa-solid fa-circle-down text-emerald-400 text-xl"></i> Depósito en Efectivo</span>
                         <i class="fa-solid fa-chevron-right text-sm text-slate-400"></i>
                     </button>
                     <button onclick="setOperation('RETIRO')" class="flex items-center justify-between p-4 bg-slate-700 hover:bg-emerald-600/30 border border-slate-600 hover:border-emerald-500 rounded-xl transition font-semibold text-left">
-                        <span class="flex items-center gap-3">
-                            <i class="fa-solid fa-circle-up text-blue-400 text-xl"></i> Retiro de Dinero
-                        </span>
+                        <span class="flex items-center gap-3"><i class="fa-solid fa-circle-up text-blue-400 text-xl"></i> Retiro de Dinero</span>
                         <i class="fa-solid fa-chevron-right text-sm text-slate-400"></i>
                     </button>
                     <button onclick="setOperation('TRANSFERENCIA')" class="flex items-center justify-between p-4 bg-slate-700 hover:bg-emerald-600/30 border border-slate-600 hover:border-emerald-500 rounded-xl transition font-semibold text-left">
-                        <span class="flex items-center gap-3">
-                            <i class="fa-solid fa-right-left text-amber-400 text-xl"></i> Transferencia / Pago
-                        </span>
+                        <span class="flex items-center gap-3"><i class="fa-solid fa-right-left text-amber-400 text-xl"></i> Transferencia / Pago</span>
                         <i class="fa-solid fa-chevron-right text-sm text-slate-400"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Formulario de Datos (Oculto inicialmente) -->
+            <!-- Formulario de Datos -->
             <div id="step-form" class="hidden space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-700 pb-2">
                     <span id="lbl-operacion" class="text-xs font-bold uppercase tracking-wider text-emerald-400"></span>
-                    <button onclick="resetForm()" class="text-xs text-slate-400 hover:text-white underline">Cambiar operación</button>
+                    <button onclick="resetForm()" class="text-xs text-slate-400 hover:text-white underline">Cambiar</button>
                 </div>
 
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1">Número de Cédula / Identificación</label>
+                        <label class="block text-xs text-slate-400 mb-1">Banco Destino / Origen</label>
+                        <select id="sel-banco" onchange="verificarBanco()" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                            <option value="CARBOWALLET">CarboWallet (Mismo Banco)</option>
+                            <option value="OTRO">Otro Banco (Banco Pichincha, Guayaquil, etc.)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Número de Cédula / Cuenta</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-id-card"></i></span>
-                            <input type="text" id="txt-cedula" maxlength="10" placeholder="Ej: 095XXXXXXX" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                            <input type="text" id="txt-cuenta" maxlength="15" placeholder="Número de cuenta o cédula" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
                         </div>
                     </div>
 
@@ -94,7 +93,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1">Monto de la Transacción ($ USD)</label>
+                        <label class="block text-xs text-slate-400 mb-1">Monto ($ USD)</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-400 font-bold">$</span>
                             <input type="number" id="txt-monto" step="0.01" placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-lg font-bold focus:outline-none focus:border-emerald-500 text-emerald-400 font-mono">
@@ -102,12 +101,32 @@
                     </div>
                 </div>
 
-                <button onclick="procesarTransaccion()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition shadow-lg mt-2">
-                    Procesar Transacción <i class="fa-solid fa-arrow-right ml-2"></i>
+                <button onclick="continuarProceso()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition shadow-lg mt-2">
+                    Continuar <i class="fa-solid fa-arrow-right ml-2"></i>
                 </button>
             </div>
 
-            <!-- Pantalla de Recibo / Voucher (Oculto inicialmente) -->
+            <!-- Paso Especial Exclusivo para RETIROS (Clave Temporal por SMS) -->
+            <div id="step-retiro-sms" class="hidden space-y-4 text-center">
+                <div class="bg-slate-900 p-4 rounded-xl border border-amber-500/50 space-y-3">
+                    <div class="text-amber-400 text-2xl"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h3 class="font-bold text-sm text-slate-200">Verificación de Retiro por Código</h3>
+                    <p class="text-xs text-slate-400">El dueño de la tienda debe generar la clave temporal de 6 dígitos para enviarla al celular registrado del cliente.</p>
+                    <button onclick="enviarClaveSMS()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-4 rounded-lg transition">
+                        <i class="fa-solid fa-paper-plane mr-1"></i> Enviar Clave de 6 Dígitos al Celular
+                    </button>
+                </div>
+
+                <div id="contenedor-ingreso-clave" class="hidden space-y-3">
+                    <label class="block text-xs text-slate-400">Ingrese la clave de 6 dígitos recibida por el cliente:</label>
+                    <input type="text" id="txt-clave-ingresada" maxlength="6" placeholder="------" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 text-center text-xl tracking-widest font-mono text-amber-400 focus:outline-none focus:border-amber-500">
+                    <button onclick="verificarClaveRetiro()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition">
+                        Confirmar Clave y Retirar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pantalla de Recibo / Voucher -->
             <div id="step-voucher" class="hidden space-y-4">
                 <div class="bg-white text-slate-900 p-5 rounded-xl shadow-inner font-mono text-xs space-y-2 relative border border-dashed border-slate-400">
                     <div class="text-center pb-2 border-b border-slate-300">
@@ -119,20 +138,21 @@
                         <div class="flex justify-between"><span>TRANSACCIÓN:</span> <strong id="v-tipo"></strong></div>
                         <div class="flex justify-between"><span>ESTADO:</span> <span class="text-emerald-700 font-bold">APROBADO</span></div>
                         <div class="flex justify-between"><span>AUTORIZACIÓN:</span> <span id="v-auth"></span></div>
-                        <div class="flex justify-between"><span>CÉDULA:</span> <span id="v-cedula"></span></div>
+                        <div class="flex justify-between"><span>DESTINO:</span> <span id="v-banco-tipo"></span></div>
+                        <div class="flex justify-between"><span id="v-lbl-beneficiario">BENEFICIARIO:</span> <strong id="v-beneficiario"></strong></div>
                         <div class="flex justify-between"><span>CELULAR:</span> <span id="v-celular"></span></div>
                     </div>
                     <div class="border-t border-slate-300 pt-2 flex justify-between text-sm font-bold">
                         <span>VALOR:</span> <span id="v-monto" class="text-emerald-800"></span>
                     </div>
                     <div class="text-center pt-3 text-[10px] text-slate-500 border-t border-slate-200">
-                        ¡Gracias por usar su Corresponsal de Barrio!<br>Conserve este comprobante.
+                        ¡Corresponsal Autorizado Pedro Carbo!<br>Conserve este comprobante.
                     </div>
                 </div>
 
                 <div class="flex gap-2">
                     <button onclick="window.print()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl text-xs font-semibold transition">
-                        <i class="fa-solid fa-print mr-1"></i> Imprimir Recibo
+                        <i class="fa-solid fa-print mr-1"></i> Imprimir
                     </button>
                     <button onclick="resetForm()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-semibold transition">
                         Nueva Transacción
@@ -142,67 +162,128 @@
 
         </div>
 
-        <!-- Pie del POS / Simulación de Teclado o Estado -->
         <div class="bg-slate-950 px-6 py-3 text-center border-t border-slate-800 text-xs text-slate-500">
             <span>Terminal Android ID: CB-BARRIO-01</span>
         </div>
     </div>
 
-    <!-- Script de Validación de Dispositivo Android y Control -->
+    <!-- Script de Control y Lógica -->
     <script>
-        // Validar si el navegador pertenece a un dispositivo Android
         window.addEventListener('DOMContentLoaded', () => {
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            const esAndroid = /android/i.test(userAgent);
-
-            if (esAndroid) {
-                // Si es Android, muestra la aplicación móvil
+            if (/android/i.test(userAgent)) {
                 document.getElementById('mobile-app').classList.remove('hidden');
             } else {
-                // Si es PC o cualquier otro sistema, muestra el bloqueo de dispositivo no compatible
                 document.getElementById('desktop-block').classList.remove('hidden');
             }
         });
 
         let operacionActual = '';
+        let claveGeneradaSMS = '';
 
         function setOperation(tipo) {
             operacionActual = tipo;
             document.getElementById('lbl-operacion').innerText = `Operación: ${tipo}`;
             document.getElementById('step-menu').classList.add('hidden');
             document.getElementById('step-form').classList.remove('hidden');
+            document.getElementById('step-retiro-sms').classList.add('hidden');
             document.getElementById('step-voucher').classList.add('hidden');
         }
 
         function resetForm() {
-            document.getElementById('txt-cedula').value = '';
+            document.getElementById('txt-cuenta').value = '';
             document.getElementById('txt-celular').value = '';
             document.getElementById('txt-monto').value = '';
+            document.getElementById('txt-clave-ingresada').value = '';
+            document.getElementById('contenedor-ingreso-clave').classList.add('hidden');
             document.getElementById('step-menu').classList.remove('hidden');
             document.getElementById('step-form').classList.add('hidden');
+            document.getElementById('step-retiro-sms').classList.add('hidden');
             document.getElementById('step-voucher').classList.add('hidden');
         }
 
-        function procesarTransaccion() {
-            const cedula = document.getElementById('txt-cedula').value;
+        function verificarBanco() {
+            const banco = document.getElementById('sel-banco').value;
+            const label = document.getElementById('lbl-cuenta-cedula');
+            if (banco === 'CARBOWALLET') {
+                label.innerText = "Número de Cédula / Cuenta (Mismo Banco)";
+            } else {
+                label.innerText = "Número de Cuenta (Otro Banco)";
+            }
+        }
+
+        function enmascararCuenta(cuenta) {
+            if (cuenta.length < 6) return '32X7XXX83X98X'; // Ejemplo por defecto si es muy corto
+            let inicio = cuenta.substring(0, 2);
+            let fin = cuenta.substring(cuenta.length - 3);
+            return `${inicio}X7XXX83X${fin}X`;
+        }
+
+        function continuarProceso() {
+            const cuenta = document.getElementById('txt-cuenta').value;
             const celular = document.getElementById('txt-celular').value;
             const monto = document.getElementById('txt-monto').value;
 
-            if(!cedula || !celular || !monto || monto <= 0) {
-                alert('Por favor complete todos los campos correctamente.');
+            if(!cuenta || !celular || !monto || monto <= 0) {
+                alert('Por favor complete todos los campos obligatorios.');
                 return;
             }
 
+            // Si es RETIRO, pasamos al paso especial de clave SMS del tendero
+            if (operacionActual === 'RETIRO') {
+                document.getElementById('step-form').classList.add('hidden');
+                document.getElementById('step-retiro-sms').classList.remove('hidden');
+            } else {
+                // Si es Depósito o Transferencia, genera voucher directo
+                generarVoucherFinal();
+            }
+        }
+
+        function enviarClaveSMS() {
+            const celular = document.getElementById('txt-celular').value;
+            claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
+            alert(`[SIMULACIÓN SMS] Clave temporal de 6 dígitos enviada al celular ${celular}\n(Clave generada para prueba: ${claveGeneradaSMS})`);
+            document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
+        }
+
+        function verificarClaveRetiro() {
+            const ingresada = document.getElementById('txt-clave-ingresada').value;
+            if (ingresada !== String(claveGeneradaSMS)) {
+                alert('Clave temporal incorrecta o expirada. Verifique con el cliente.');
+                return;
+            }
+            generarVoucherFinal();
+        }
+
+        function generarVoucherFinal() {
+            const banco = document.getElementById('sel-banco').value;
+            const cuentaInput = document.getElementById('txt-cuenta').value;
+            const celular = document.getElementById('txt-celular').value;
+            const monto = document.getElementById('txt-monto').value;
+
             document.getElementById('v-tipo').innerText = operacionActual;
             document.getElementById('v-auth').innerText = Math.floor(100000 + Math.random() * 900000);
-            document.getElementById('v-cedula').innerText = cedula;
             document.getElementById('v-celular').innerText = celular;
             document.getElementById('v-monto').innerText = `$ ${parseFloat(monto).toFixed(2)}`;
-            
+
+            if (banco === 'CARBOWALLET') {
+                document.getElementById('v-banco-tipo').innerText = "CarboWallet (Local)";
+                document.getElementById('v-lbl-beneficiario').innerText = "TITULAR:";
+                // Simulación de nombre registrado para mismo banco
+                document.getElementById('v-beneficiario').innerText = "JEREMY M. DEL ROSARIO"; 
+            } else {
+                document.getElementById('v-banco-tipo').innerText = "Otro Banco (Interbancario)";
+                document.getElementById('v-lbl-beneficiario').innerText = "CUENTA DESTINO:";
+                // Muestra la cuenta enmascarada solicitada
+                document.getElementById('v-beneficiario').innerText = enmascararCuenta(cuentaInput);
+            }
+
             const now = new Date();
             document.getElementById('voucher-fecha').innerText = now.toLocaleString();
 
+            // Ocultar formularios previos y mostrar voucher
             document.getElementById('step-form').classList.add('hidden');
+            document.getElementById('step-retiro-sms').classList.add('hidden');
             document.getElementById('step-voucher').classList.remove('hidden');
         }
     </script>
