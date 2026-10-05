@@ -10,7 +10,7 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
-    <!-- Barra de Estado de Conexión -->
+    <!-- Barra de Estado de Conexión a Internet -->
     <div id="connection-bar" class="w-full max-w-md mb-2 py-1.5 px-4 rounded-xl text-xs font-bold text-center transition-all duration-300 bg-emerald-600 text-white shadow-md flex items-center justify-center gap-2">
         <i id="conn-icon" class="fa-solid fa-wifi"></i>
         <span id="conn-text">Conectado a Internet (Online)</span>
@@ -74,6 +74,12 @@
         <!-- Cuerpo de la App -->
         <div class="p-6 space-y-5">
             
+            <!-- Barra de Estado de Procesamiento Dinámica -->
+            <div id="status-processing-bar" class="hidden w-full py-2.5 px-4 rounded-xl text-xs font-bold text-center transition-all duration-300 shadow-md flex items-center justify-center gap-2">
+                <i id="status-icon" class="fa-solid fa-spinner animate-spin"></i>
+                <span id="status-text">Procesando...</span>
+            </div>
+
             <!-- Menú Principal -->
             <div id="step-menu" class="space-y-3">
                 <p class="text-sm font-medium text-slate-300">Seleccione la transacción:</p>
@@ -110,10 +116,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">ID de Usuario Firestore / Cédula</label>
+                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Número de Cuenta / Cédula</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-id-card"></i></span>
-                            <input type="text" id="txt-cuenta" maxlength="35" placeholder="UID exacto del usuario en Firestore" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                            <input type="text" id="txt-cuenta" maxlength="35" placeholder="Número de cuenta o cédula" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
                         </div>
                     </div>
 
@@ -204,7 +210,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ4f1wD8W3WOoZANRO5KvOJW2gfP_wwE",
@@ -219,7 +225,7 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- SISTEMA DE DETECCIÓN DE CONEXIÓN A INTERNET (BARRA DE ESTADO) ---
+        // --- SISTEMA DE DETECCIÓN DE CONEXIÓN A INTERNET ---
         function actualizarEstadoConexion() {
             const bar = document.getElementById('connection-bar');
             const icon = document.getElementById('conn-icon');
@@ -250,7 +256,6 @@
                 return;
             }
 
-            // Observador de Estado de Sesión Firebase
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     if (user.email === "jeremymatiasdelrosario@gmail.com") {
@@ -268,7 +273,6 @@
             });
         });
 
-        // Manejo del Formulario de Login
         const loginForm = document.getElementById('loginForm');
         if(loginForm) {
             loginForm.addEventListener('submit', async (e) => {
@@ -297,9 +301,28 @@
             await signOut(auth);
         }
 
-        // --- LÓGICA DE OPERACIONES Y FIRESTORE ---
+        // --- LÓGICA DE OPERACIONES Y ESTADOS VISUALES ---
         let operacionActual = '';
         let claveGeneradaSMS = '';
+
+        function mostrarBarraEstado(mensaje, tipo) {
+            const bar = document.getElementById('status-processing-bar');
+            const icon = document.getElementById('status-icon');
+            const text = document.getElementById('status-text');
+            bar.classList.remove('hidden');
+            text.textContent = mensaje;
+
+            if (tipo === 'proceso') {
+                bar.className = "w-full py-2.5 px-4 rounded-xl text-xs font-bold text-center bg-blue-600 text-white shadow-md flex items-center justify-center gap-2 animate-pulse";
+                icon.className = "fa-solid fa-spinner animate-spin";
+            } else if (tipo === 'exito') {
+                bar.className = "w-full py-2.5 px-4 rounded-xl text-xs font-bold text-center bg-emerald-600 text-white shadow-md flex items-center justify-center gap-2";
+                icon.className = "fa-solid fa-circle-check";
+            } else if (tipo === 'error') {
+                bar.className = "w-full py-2.5 px-4 rounded-xl text-xs font-bold text-center bg-red-600 text-white shadow-md flex items-center justify-center gap-2";
+                icon.className = "fa-solid fa-triangle-exclamation";
+            }
+        }
 
         window.setOperation = function(tipo) {
             operacionActual = tipo;
@@ -308,6 +331,7 @@
             document.getElementById('step-form').classList.remove('hidden');
             document.getElementById('step-retiro-sms').classList.add('hidden');
             document.getElementById('step-voucher').classList.add('hidden');
+            document.getElementById('status-processing-bar').classList.add('hidden');
         }
 
         window.resetForm = function() {
@@ -320,13 +344,14 @@
             document.getElementById('step-form').classList.add('hidden');
             document.getElementById('step-retiro-sms').classList.add('hidden');
             document.getElementById('step-voucher').classList.add('hidden');
+            document.getElementById('status-processing-bar').classList.add('hidden');
         }
 
         window.verificarBanco = function() {
             const banco = document.getElementById('sel-banco').value;
             const label = document.getElementById('lbl-cuenta-cedula');
             if (banco === 'CARBOWALLET') {
-                label.innerText = "ID de Usuario Firestore / Cédula";
+                label.innerText = "Número de Cuenta / Cédula";
             } else {
                 label.innerText = "Número de Cuenta (Otro Banco)";
             }
@@ -340,8 +365,8 @@
         }
 
         window.continuarProceso = function() {
-            const cuenta = document.getElementById('txt-cuenta').value;
-            const celular = document.getElementById('txt-celular').value;
+            const cuenta = document.getElementById('txt-cuenta').value.trim();
+            const celular = document.getElementById('txt-celular').value.trim();
             const monto = document.getElementById('txt-monto').value;
 
             if(!cuenta || !celular || !monto || monto <= 0) {
@@ -353,27 +378,27 @@
                 document.getElementById('step-form').classList.add('hidden');
                 document.getElementById('step-retiro-sms').classList.remove('hidden');
             } else {
-                generarVoucherFinal();
+                ejecutarTransaccionFirestore();
             }
         }
 
         window.enviarClaveSMS = function() {
             const celular = document.getElementById('txt-celular').value;
             claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
-            alert(`[SIMULACIÓN SMS] Clave temporal de 6 dígitos enviada al celular ${celular}\n(Clave generada para prueba: ${claveGeneradaSMS})`);
+            alert(`[SIMULACIÓN SMS] Clave temporal enviada al celular ${celular}\n(Clave de prueba: ${claveGeneradaSMS})`);
             document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
         }
 
         window.verificarClaveRetiro = function() {
             const ingresada = document.getElementById('txt-clave-ingresada').value;
             if (ingresada !== String(claveGeneradaSMS)) {
-                alert('Clave temporal incorrecta o expirada. Verifique con el cliente.');
+                alert('Clave temporal incorrecta o expirada.');
                 return;
             }
-            generarVoucherFinal();
+            ejecutarTransaccionFirestore();
         }
 
-        async function generarVoucherFinal() {
+        async function ejecutarTransaccionFirestore() {
             const banco = document.getElementById('sel-banco').value;
             const cuentaInput = document.getElementById('txt-cuenta').value.trim();
             const celular = document.getElementById('txt-celular').value.trim();
@@ -381,39 +406,79 @@
             const monto = parseFloat(montoStr);
 
             if (isNaN(monto) || monto <= 0) {
-                alert('Ingrese un monto válido.');
+                mostrarBarraEstado("Error 505: Monto inválido", "error");
                 return;
             }
 
-            // Actualización de saldo en Firestore si es CarboWallet (Mismo Banco)
             if (banco === 'CARBOWALLET') {
                 try {
-                    const userRef = doc(db, "usuarios", cuentaInput);
-                    const userSnap = await getDoc(userRef);
+                    mostrarBarraEstado("Conectado a CarboWallet...", "proceso");
+                    await new Promise(r => setTimeout(r, 600)); // Breve pausa visual de conexión
 
-                    if (userSnap.exists()) {
-                        if (operacionActual === 'DEPOSITO') {
-                            await updateDoc(userRef, { saldo: increment(monto) });
-                        } else if (operacionActual === 'RETIRO' || operacionActual === 'TRANSFERENCIA') {
-                            const saldoActual = userSnap.data().saldo || 0;
-                            if (saldoActual < monto) {
-                                alert('Error: El usuario no tiene suficiente saldo para esta operación.');
-                                return;
-                            }
-                            await updateDoc(userRef, { saldo: increment(-monto) });
-                        }
+                    mostrarBarraEstado("Comprobando el saldo del depósito...", "proceso");
+
+                    // Buscar el documento por UID directo o buscando en campos de cuenta/cedula
+                    let userRef = null;
+                    let userSnap = null;
+
+                    const directRef = doc(db, "usuarios", cuentaInput);
+                    const directSnap = await getDoc(directRef);
+
+                    if (directSnap.exists()) {
+                        userRef = directRef;
+                        userSnap = directSnap;
                     } else {
-                        alert('Aviso: El ID de usuario no existe en la base de datos de usuarios de Firestore. Verifique el código ingresado.');
+                        // Buscar por campo cédula o número de cuenta si existe en la colección
+                        const qCedula = query(collection(db, "usuarios"), where("cedula", "==", cuentaInput));
+                        const querySnap = await getDocs(qCedula);
+                        if (!querySnap.empty) {
+                            userSnap = querySnap.docs[0];
+                            userRef = userSnap.ref;
+                        } else {
+                            const qCuenta = query(collection(db, "usuarios"), where("cuenta", "==", cuentaInput));
+                            const qCuentaSnap = await getDocs(qCuenta);
+                            if (!qCuentaSnap.empty) {
+                                userSnap = qCuentaSnap.docs[0];
+                                userRef = userSnap.ref;
+                            }
+                        }
+                    }
+
+                    if (!userSnap || !userRef) {
+                        mostrarBarraEstado("Error 505: Cuenta o cédula no encontrada", "error");
                         return;
                     }
-                } catch (error) {
-                    console.error("Error al actualizar Firestore:", error);
-                    alert("Error de permisos o red al actualizar el saldo en la base de datos.");
-                    return;
-                }
-            }
 
-            // Renderizado de datos del comprobante
+                    if (operacionActual === 'DEPOSITO') {
+                        await updateDoc(userRef, { saldo: increment(monto) });
+                    } else if (operacionActual === 'RETIRO' || operacionActual === 'TRANSFERENCIA') {
+                        const saldoActual = userSnap.data().saldo || 0;
+                        if (saldoActual < monto) {
+                            mostrarBarraEstado("Error 505: Fondos insuficientes", "error");
+                            return;
+                        }
+                        await updateDoc(userRef, { saldo: increment(-monto) });
+                    }
+
+                    mostrarBarraEstado("¡Depósito exitoso!", "exito");
+                    await new Promise(r => setTimeout(r, 1000));
+                    document.getElementById('status-processing-bar').classList.add('hidden');
+                    generarVoucherFinal(cuentaInput, celular, monto, banco);
+
+                } catch (error) {
+                    console.error("Error en Firestore:", error);
+                    mostrarBarraEstado("Error 505: Fallo de conexión o permisos", "error");
+                }
+            } else {
+                // Otro banco (Interbancario)
+                mostrarBarraEstado("¡Depósito exitoso!", "exito");
+                await new Promise(r => setTimeout(r, 1000));
+                document.getElementById('status-processing-bar').classList.add('hidden');
+                generarVoucherFinal(cuentaInput, celular, monto, banco);
+            }
+        }
+
+        function generarVoucherFinal(cuentaInput, celular, monto, banco) {
             document.getElementById('v-tipo').innerText = operacionActual;
             document.getElementById('v-auth').innerText = Math.floor(100000 + Math.random() * 900000);
             document.getElementById('v-celular').innerText = celular;
@@ -421,7 +486,7 @@
 
             if (banco === 'CARBOWALLET') {
                 document.getElementById('v-banco-tipo').innerText = "CarboWallet (Local)";
-                document.getElementById('v-lbl-beneficiario').innerText = "ID USUARIO:";
+                document.getElementById('v-lbl-beneficiario').innerText = "CUENTA / CÉDULA:";
                 document.getElementById('v-beneficiario').innerText = cuentaInput; 
             } else {
                 document.getElementById('v-banco-tipo').innerText = "Otro Banco (Interbancario)";
