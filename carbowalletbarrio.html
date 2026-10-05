@@ -110,16 +110,16 @@
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Banco Destino / Origen</label>
                         <select id="sel-banco" onchange="verificarBanco()" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
-                            <option value="CARBOWALLET">CarboWallet (Colección 'usuario')</option>
+                            <option value="CARBOWALLET">CarboWallet (Colección 'usuarios')</option>
                             <option value="OTRO">Otro Banco (Banco Pichincha, Guayaquil, etc.)</option>
                         </select>
                     </div>
 
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Cédula / ID del Usuario en 'usuario'</label>
+                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Cédula / ID del Usuario en 'usuarios'</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-id-card"></i></span>
-                            <input type="text" id="txt-cuenta" maxlength="50" placeholder="Ej: Cédula o ID en colección 'usuario'" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                            <input type="text" id="txt-cuenta" maxlength="50" placeholder="Ej: Cédula o ID en colección 'usuarios'" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
                         </div>
                     </div>
 
@@ -210,7 +210,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ4f1wD8W3WOoZANRO5KvOJW2gfP_wwE",
@@ -234,7 +234,7 @@
             if (navigator.onLine) {
                 bar.className = "w-full max-w-md mb-2 py-1.5 px-4 rounded-xl text-xs font-bold text-center transition-all duration-300 bg-emerald-600 text-white shadow-md flex items-center justify-center gap-2";
                 icon.className = "fa-solid fa-wifi";
-                text.textContent = "Conectado à Internet (Online)";
+                text.textContent = "Conectado a Internet (Online)";
             } else {
                 bar.className = "w-full max-w-md mb-2 py-1.5 px-4 rounded-xl text-xs font-bold text-center transition-all duration-300 bg-red-600 text-white shadow-md flex items-center justify-center gap-2 animate-pulse";
                 icon.className = "fa-solid fa-triangle-exclamation";
@@ -353,7 +353,7 @@
             const banco = document.getElementById('sel-banco').value;
             const label = document.getElementById('lbl-cuenta-cedula');
             if (banco === 'CARBOWALLET') {
-                label.innerText = "Cédula / ID del Usuario en 'usuario'";
+                label.innerText = "Cédula / ID del Usuario en 'usuarios'";
             } else {
                 label.innerText = "Número de Cuenta (Otro Banco)";
             }
@@ -414,41 +414,30 @@
 
             if (banco === 'CARBOWALLET') {
                 try {
-                    mostrarBarraEstado("Buscando en la colección 'usuario'...", "proceso");
-                    // Consulta directa a la colección 'usuario'
-                    const cuentaRef = doc(db, "usuario", cuentaInput);
+                    mostrarBarraEstado("Leyendo colección 'usuarios'...", "proceso");
+                    
+                    // Referencia estricta a la colección 'usuarios' (en plural)
+                    const cuentaRef = doc(db, "usuarios", cuentaInput);
                     const cuentaSnap = await getDoc(cuentaRef);
 
-                    if (operacionActual === 'DEPOSITO') {
-                        if (!cuentaSnap.exists()) {
-                            nombreTitularEncontrado = "USUARIO NUEVO (CREADO)";
-                            await setDoc(cuentaRef, { 
-                                saldo: monto, 
-                                celular: celular, 
-                                nombre: "Cliente CarboWallet",
-                                fechaCreacion: new Date().toISOString() 
-                            });
-                        } else {
-                            const data = cuentaSnap.data();
-                            // Extrae el nombre o titular registrado en el documento de la colección 'usuario'
-                            nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || `Cédula: ${cuentaInput}`;
-                            await updateDoc(cuentaRef, { saldo: increment(monto) });
-                        }
-                    } else {
-                        if (!cuentaSnap.exists()) {
-                            mostrarBarraEstado("Error: El usuario no existe en la colección 'usuario'", "error");
-                            return;
-                        }
-                        const data = cuentaSnap.data();
-                        nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || `Cédula: ${cuentaInput}`;
-                        const saldoActual = data.saldo || 0;
-
-                        if (saldoActual < monto) {
-                            mostrarBarraEstado("Error: Fondos insuficientes en la cuenta del usuario", "error");
-                            return;
-                        }
-                        await updateDoc(cuentaRef, { saldo: increment(-monto) });
+                    // Si el usuario no existe, se detiene y NO se crea nada nuevo
+                    if (!cuentaSnap.exists()) {
+                        mostrarBarraEstado("Error: El usuario no existe en la colección 'usuarios'", "error");
+                        return;
                     }
+
+                    const data = cuentaSnap.data();
+                    nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || `Cédula: ${cuentaInput}`;
+                    const saldoActual = data.saldo || 0;
+
+                    if (operacionActual === 'RETIRO' && saldoActual < monto) {
+                        mostrarBarraEstado("Error: Fondos insuficientes en la cuenta del usuario", "error");
+                        return;
+                    }
+
+                    // Actualización exclusiva del saldo según la operación (Depósito suma, Retiro resta)
+                    const cambioSaldo = (operacionActual === 'DEPOSITO') ? monto : -monto;
+                    await updateDoc(cuentaRef, { saldo: increment(cambioSaldo) });
 
                     mostrarBarraEstado("¡Transacción Exitosa!", "exito");
                     await new Promise(r => setTimeout(r, 1000));
@@ -477,7 +466,7 @@
             document.getElementById('v-beneficiario').innerText = nombreTitularEncontrado;
 
             if (banco === 'CARBOWALLET') {
-                document.getElementById('v-banco-tipo').innerText = "CarboWallet (Colección 'usuario')";
+                document.getElementById('v-banco-tipo').innerText = "CarboWallet (Colección 'usuarios')";
                 document.getElementById('v-lbl-beneficiario').innerText = "TITULAR REGISTRADO:";
             } else {
                 document.getElementById('v-banco-tipo').innerText = "Otro Banco (Interbancario)";
