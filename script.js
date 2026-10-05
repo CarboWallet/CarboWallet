@@ -1,4 +1,4 @@
-// script.js - Banco Pedro Carbo (Completo con cuentas, verificación automática interna y externa por humano)
+// script.js - Banco Pedro Carbo (Completo con cuentas, verificación automática, tarjeta virtual y gestión de deudas)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { 
@@ -38,6 +38,7 @@ const db = getFirestore(app);
 
 let currentUser = null;
 let currentBalance = 0.00;
+let currentDeuda = 0.00; // <--- Variable global para la deuda o saldo pendiente
 let currentUserData = null;
 let selectedProduct = null;
 
@@ -84,13 +85,11 @@ if (registerView) {
         const numeroCuentaGenerado = "55" + Math.floor(10000000 + Math.random() * 90000000);
 
         try {
-            // Importar sendEmailVerification de Firebase Auth
             const { sendEmailVerification } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
 
             const userCred = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(userCred.user, { displayName: name });
             
-            // Enviar enlace de verificación al correo ingresado
             await sendEmailVerification(userCred.user);
 
             await setDoc(doc(db, "usuarios", userCred.user.uid), {
@@ -98,12 +97,12 @@ if (registerView) {
                 email: email,
                 numeroCuenta: numeroCuentaGenerado,
                 saldo: 0.00,
+                deuda: 0.00, // Inicializar deuda en 0
                 creado: serverTimestamp()
             });
 
             showToast("¡Cuenta creada! Hemos enviado un enlace de verificación a tu correo.", "success");
             
-            // Cerrar sesión temporalmente hasta que verifique, o mostrar pantalla de aviso
             await signOut(auth);
             if (registerView) registerView.classList.add("hidden");
             if (loginView) loginView.classList.remove("hidden");
@@ -142,8 +141,6 @@ if (btnLogout) {
 // Auth State Observer mejorado con validación de correo verificado
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Opcional estricto: Si no ha verificado su correo, impedir el ingreso y advertir
-        // (Nota: Comenta esta línea si deseas permitir el acceso sin verificar)
         if (!user.emailVerified) {
             showToast("Por favor, verifica tu correo electrónico antes de ingresar. Revisa tu bandeja de entrada.", "error");
             await signOut(auth);
@@ -158,10 +155,12 @@ onAuthStateChanged(auth, async (user) => {
         const userNameDisplay = document.getElementById("userNameDisplay");
         const userAvatar = document.getElementById("userAvatar");
         const dashBalance = document.getElementById("dashBalance");
+        const dashDeuda = document.getElementById("dashDeuda");
 
         if (userNameDisplay) userNameDisplay.textContent = name;
         if (userAvatar) userAvatar.textContent = name.substring(0, 2).toUpperCase();
         if (dashBalance) dashBalance.textContent = "Cargando...";
+        if (dashDeuda) dashDeuda.textContent = "Cargando...";
 
         try {
             const userRef = doc(db, "usuarios", user.uid);
@@ -170,6 +169,7 @@ onAuthStateChanged(auth, async (user) => {
             if (userDoc.exists()) {
                 currentUserData = userDoc.data();
                 currentBalance = currentUserData.saldo ?? 0.00;
+                currentDeuda = currentUserData.deuda ?? 0.00; // <--- Carga la deuda actual
                 
                 if (!currentUserData.numeroCuenta || currentUserData.numeroCuenta === "") {
                     const nuevoNumeroCuenta = "55" + Math.floor(10000000 + Math.random() * 90000000);
@@ -181,11 +181,13 @@ onAuthStateChanged(auth, async (user) => {
                 if (accNumDisp) accNumDisp.textContent = `Cuenta: ${currentUserData.numeroCuenta}`;
             } else {
                 currentBalance = 0.00;
+                currentDeuda = 0.00;
             }
             updateBalanceUI();
         } catch(e) { 
             console.error("Error al cargar datos del usuario:", e);
             currentBalance = 0.00;
+            currentDeuda = 0.00;
             updateBalanceUI();
         }
 
@@ -200,11 +202,17 @@ onAuthStateChanged(auth, async (user) => {
         if (authScreen) authScreen.classList.remove("hidden");
     }
 });
+
 function updateBalanceUI() {
     const dashBalance = document.getElementById("dashBalance");
-    if (!dashBalance) return;
-    const formatted = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(currentBalance);
-    dashBalance.textContent = formatted;
+    const dashDeuda = document.getElementById("dashDeuda");
+
+    if (dashBalance) {
+        dashBalance.textContent = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(currentBalance);
+    }
+    if (dashDeuda) {
+        dashDeuda.textContent = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(currentDeuda);
+    }
 }
 
 // Navegación de la barra lateral
@@ -283,8 +291,28 @@ if (formTransferencia) {
                         return;
                     }
 
-                    const nuevoSaldoDestino = (beneficiarioData.saldo || 0) + monto;
-                    await setDoc(doc(db, "usuarios", beneficiarioDoc.id), { saldo: nuevoSaldoDestino }, { merge: true });
+                    // APLICAR LÓGICA DE COBRO AUTOMÁTICO DE DEUDA EN DESTINO SI TUVIERA PENDIENTE
+                    let saldoBen = beneficiarioData.saldo || 0;
+                    let deudaBen = beneficiarioData.deuda || 0;
+                    let montoNetoBen = monto;
+
+                    if (deudaBen > 0) {
+                        if (monto >= deudaBen) {
+                            montoNetoBen = monto - deudaBen;
+                            saldoBen += montoNetoBen;
+                            deudaBen = 0;
+                        } else {
+                            deudaBen -= monto;
+                            montoNetoBen = 0;
+                        }
+                    } else {
+                        saldoBen += monto;
+                    }
+
+                    await setDoc(doc(db, "usuarios", beneficiarioDoc.id), { 
+                        saldo: saldoBen,
+                        deuda: deudaBen 
+                    }, { merge: true });
 
                     await addDoc(collection(db, "transacciones"), {
                         userId: beneficiarioDoc.id,
@@ -329,6 +357,77 @@ if (formTransferencia) {
             console.error("Error al procesar transferencia:", error);
             showToast("Error de permisos o conexión con Firebase.", "error");
         }
+    });
+}
+
+// ==========================================
+// FUNCIÓN PARA QUE EL ADMIN PRESTE DINERO O REGISTRE DEUDA
+// ==========================================
+window.adminPrestarDinero = async function(userIdUser, montoPrestamo) {
+    const userRef = doc(db, "usuarios", userIdUser);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+
+    const data = userSnap.data();
+    const deudaActual = data.deuda || 0;
+    const saldoActual = data.saldo || 0;
+
+    // Incrementa la deuda y le abona el saldo para que pueda usarlo
+    await setDoc(userRef, {
+        deuda: deudaActual + montoPrestamo,
+        saldo: saldoActual + montoPrestamo 
+    }, { merge: true });
+
+    await addDoc(collection(db, "transacciones"), {
+        userId: userIdUser,
+        title: "Préstamo / Saldo Pendiente Asignado",
+        category: "Otorgado por Administrador",
+        amount: montoPrestamo,
+        date: new Date().toLocaleString(),
+        timestamp: serverTimestamp()
+    });
+}
+
+// ==========================================
+// FUNCIÓN PARA PROCESAR DEPÓSITOS Y COBRAR DEUDA EXACTA
+// ==========================================
+window.procesarDepositoConCobroDeuda = async function(userId, montoDepositado) {
+    const userRef = doc(db, "usuarios", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) return;
+    let data = userSnap.data();
+    let saldoActual = data.saldo || 0;
+    let deudaActual = data.deuda || 0;
+
+    let montoNetoAIngresar = montoDepositado;
+
+    // Si tiene deuda pendiente, el depósito cubre la deuda primero de forma exacta
+    if (deudaActual > 0) {
+        if (montoDepositado >= deudaActual) {
+            montoNetoAIngresar = montoDepositado - deudaActual;
+            saldoActual += montoNetoAIngresar;
+            deudaActual = 0; // Deuda saldada por completo
+        } else {
+            deudaActual -= montoDepositado;
+            montoNetoAIngresar = 0; // Todo el depósito se aplicó a la deuda
+        }
+    } else {
+        saldoActual += montoDepositado;
+    }
+
+    await setDoc(userRef, {
+        saldo: saldoActual,
+        deuda: deudaActual
+    }, { merge: true });
+
+    await addDoc(collection(db, "transacciones"), {
+        userId: userId,
+        title: "Depósito / Ajuste de Saldo",
+        category: `Monto recibido: $${montoDepositado.toFixed(2)} (Cobro de deuda aplicado automáticamente)`,
+        amount: montoDepositado,
+        date: new Date().toLocaleString(),
+        timestamp: serverTimestamp()
     });
 }
 
