@@ -234,7 +234,7 @@
             if (navigator.onLine) {
                 bar.className = "w-full max-w-md mb-2 py-1.5 px-4 rounded-xl text-xs font-bold text-center transition-all duration-300 bg-emerald-600 text-white shadow-md flex items-center justify-center gap-2";
                 icon.className = "fa-solid fa-wifi";
-                text.textContent = "Conectado a Internet (Online)";
+                text.textContent = "Conectado à Internet (Online)";
             } else {
                 bar.className = "w-full max-w-md mb-2 py-1.5 px-4 rounded-xl text-xs font-bold text-center transition-all duration-300 bg-red-600 text-white shadow-md flex items-center justify-center gap-2 animate-pulse";
                 icon.className = "fa-solid fa-triangle-exclamation";
@@ -292,7 +292,7 @@
                     errBox.classList.add('hidden');
                 } catch (error) {
                     errBox.textContent = "Credenciales incorrectas o error de conexión.";
-                    errBox.classList.remove('hiddenpx');
+                    errBox.classList.remove('hidden');
                 }
             });
         }
@@ -406,23 +406,19 @@
             const monto = parseFloat(montoStr);
 
             if (isNaN(monto) || monto <= 0) {
-                mostrarBarraEstado("Error 505: Monto inválido", "error");
+                mostrarBarraEstado("Error: Monto inválido", "error");
                 return;
             }
 
             if (banco === 'CARBOWALLET') {
                 try {
-                    mostrarBarraEstado("Conectado a CarboWallet...", "proceso");
-                    await new Promise(r => setTimeout(r, 400));
-
-                    mostrarBarraEstado("Comprobando el saldo del depósito...", "proceso");
-
+                    mostrarBarraEstado("Conectando con Firestore...", "proceso");
                     const userRef = doc(db, "usuarios", cuentaInput);
                     const userSnap = await getDoc(userRef);
 
                     if (operacionActual === 'DEPOSITO') {
                         if (!userSnap.exists()) {
-                            // Si no existe, lo creamos con setDoc gracias a las nuevas reglas permitidas para staff
+                            // Crear cuenta automáticamente si no existe
                             await setDoc(userRef, { 
                                 saldo: monto, 
                                 celular: celular, 
@@ -434,30 +430,30 @@
                         }
                     } else {
                         if (!userSnap.exists()) {
-                            mostrarBarraEstado("Error 505: Cuenta o ID no encontrado", "error");
+                            mostrarBarraEstado("Error: Cuenta o ID no encontrado en la BD", "error");
                             return;
                         }
                         const saldoActual = userSnap.data().saldo || 0;
                         if (saldoActual < monto) {
-                            mostrarBarraEstado("Error 505: Fondos insuficientes", "error");
+                            mostrarBarraEstado("Error: Fondos insuficientes en la cuenta", "error");
                             return;
                         }
                         await updateDoc(userRef, { saldo: increment(-monto) });
                     }
 
-                    mostrarBarraEstado("¡Depósito exitoso!", "exito");
+                    mostrarBarraEstado("¡Transacción Exitosa!", "exito");
                     await new Promise(r => setTimeout(r, 1000));
                     document.getElementById('status-processing-bar').classList.add('hidden');
                     generarVoucherFinal(cuentaInput, celular, monto, banco);
 
                 } catch (error) {
-                    // Imprimimos el error real en la consola del navegador (F12) para depurar
-                    console.error("Detalle técnico del error en Firestore:", error);
-                    mostrarBarraEstado(`Error 505: ${error.code || 'Fallo de permisos'}`, "error");
+                    console.error("Detalle técnico del error:", error);
+                    // Muestra el error exacto de Firebase en la pantalla en lugar de un genérico 505
+                    mostrarBarraEstado(`Error Firebase: ${error.code || error.message}`, "error");
                 }
             } else {
                 // Otro banco (Interbancario)
-                mostrarBarraEstado("¡Depósito exitoso!", "exito");
+                mostrarBarraEstado("¡Transacción Exitosa!", "exito");
                 await new Promise(r => setTimeout(r, 1000));
                 document.getElementById('status-processing-bar').classList.add('hidden');
                 generarVoucherFinal(cuentaInput, celular, monto, banco);
