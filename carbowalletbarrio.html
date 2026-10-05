@@ -416,16 +416,17 @@
                 try {
                     mostrarBarraEstado("Leyendo colección 'usuarios'...", "proceso");
                     
-                    // Referencia estricta a la colección 'usuarios' (en plural)
+                    // Referencia estricta para LEER el documento existente en la colección 'usuarios'
                     const cuentaRef = doc(db, "usuarios", cuentaInput);
                     const cuentaSnap = await getDoc(cuentaRef);
 
-                    // Si el usuario no existe, se detiene y NO se crea nada nuevo
+                    // Si el usuario no existe en la colección, se detiene inmediatamente y NO crea nada
                     if (!cuentaSnap.exists()) {
                         mostrarBarraEstado("Error: El usuario no existe en la colección 'usuarios'", "error");
                         return;
                     }
 
+                    // Lee los datos del usuario existente para obtener su nombre real y saldo actual
                     const data = cuentaSnap.data();
                     nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || `Cédula: ${cuentaInput}`;
                     const saldoActual = data.saldo || 0;
@@ -435,7 +436,7 @@
                         return;
                     }
 
-                    // Actualización exclusiva del saldo según la operación (Depósito suma, Retiro resta)
+                    // Actualiza únicamente el saldo del usuario existente (suma si es depósito, resta si es retiro)
                     const cambioSaldo = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     await updateDoc(cuentaRef, { saldo: increment(cambioSaldo) });
 
