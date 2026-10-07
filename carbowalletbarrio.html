@@ -217,7 +217,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ4f1wD8W3WOoZANRO5KvOJW2gfP_wwE",
@@ -312,6 +312,7 @@
         let operacionActual = '';
         let claveGeneradaSMS = '';
         let nombreTitularEncontrado = '';
+        let correoTitularEncontrado = '';
         let docIdEncontrado = '';
 
         function mostrarBarraEstado(mensaje, tipo) {
@@ -349,6 +350,7 @@
             document.getElementById('txt-monto').value = '';
             document.getElementById('txt-clave-ingresada').value = '';
             nombreTitularEncontrado = '';
+            correoTitularEncontrado = '';
             docIdEncontrado = '';
             document.getElementById('lbl-info-usuario').textContent = "Estado: Ingrese el número de cuenta y pulse Buscar.";
             document.getElementById('lbl-info-usuario').className = "text-xs mt-1.5 text-slate-400 font-mono";
@@ -396,6 +398,7 @@
                     infoLabel.textContent = "❌ No se encontró ninguna cuenta con ese número.";
                     infoLabel.className = "text-xs mt-1.5 text-red-400 font-mono";
                     nombreTitularEncontrado = '';
+                    correoTitularEncontrado = '';
                     docIdEncontrado = '';
                     return;
                 }
@@ -405,6 +408,7 @@
                 const data = docSnap.data();
 
                 nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || "Usuario sin nombre";
+                correoTitularEncontrado = data.email || "Sin correo";
                 const saldoActual = data.saldo ?? 0.00;
 
                 infoLabel.innerHTML = `✅ Titular: <strong class="text-white">${nombreTitularEncontrado}</strong> | Saldo: <span class="text-emerald-400">$${saldoActual.toFixed(2)}</span>`;
@@ -473,22 +477,42 @@
 
             if (banco === 'CARBOWALLET') {
                 try {
-                    mostrarBarraEstado("Actualizando saldo en Firestore...", "proceso");
+                    mostrarBarraEstado("Actualizando saldo y registrando movimiento...", "proceso");
                     
                     const cuentaRef = doc(db, "usuarios", docIdEncontrado);
-                    
-                    if (operacionActual === 'RETIRO') {
-                        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js").then(async ({ getDoc }) => {
-                            const snap = await getDoc(cuentaRef);
-                            if (snap.exists() && (snap.data().saldo || 0) < monto) {
-                                mostrarBarraEstado("Error: Fondos insuficientes en la cuenta", "error");
-                                return;
-                            }
-                        });
+                    const cuentaSnap = await getDoc(cuentaRef);
+
+                    if (!cuentaSnap.exists()) {
+                        mostrarBarraEstado("Error: El usuario ya no existe", "error");
+                        return;
                     }
 
+                    const saldoActual = cuentaSnap.data().saldo || 0;
+
+                    if (operacionActual === 'RETIRO' && saldoActual < monto) {
+                        mostrarBarraEstado("Error: Fondos insuficientes en la cuenta", "error");
+                        return;
+                    }
+
+                    // 1. Actualiza el saldo del usuario
                     const cambioSaldo = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     await updateDoc(cuentaRef, { saldo: increment(cambioSaldo) });
+
+                    // 2. Registra el movimiento en la colección 'transacciones' para que aparezca en la banca web del usuario
+                    const montoFinalTransaccion = (operacionActual === 'DEPOSITO') ? monto : -monto;
+                    const tituloTransaccion = (operacionActual === 'DEPOSITO') ? "Depósito en Corresponsal Barrio" : "Retiro en Corresponsal Barrio";
+
+                    await addDoc(collection(db, "transacciones"), {
+                        userId: docIdEncontrado,
+                        userEmail: correoTitularEncontrado,
+                        userName: nombreTitularEncontrado,
+                        title: tituloTransaccion,
+                        category: "Corresponsal de Barrio",
+                        amount: montoFinalTransaccion,
+                        date: new Date().toLocaleString(),
+                        timestamp: serverTimestamp(),
+                        estado: "Completado"
+                    });
 
                     mostrarBarraEstado("¡Transacción Exitosa!", "exito");
                     await new Promise(r => setTimeout(r, 1000));
