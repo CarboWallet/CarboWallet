@@ -110,24 +110,24 @@
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Banco Destino / Origen</label>
                         <select id="sel-banco" onchange="verificarBanco()" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
-                            <option value="CARBOWALLET">CarboWallet (Colección 'usuarios')</option>
+                            <option value="CARBOWALLET">CarboWallet (Por Número de Cuenta)</option>
                             <option value="OTRO">Otro Banco (Banco Pichincha, Guayaquil, etc.)</option>
                         </select>
                     </div>
 
-                    <!-- Input con Búsqueda Directa por Número de Cuenta / Cédula -->
+                    <!-- Input con Búsqueda Directa por Número de Cuenta -->
                     <div id="contenedor-busqueda-cuenta">
-                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Cédula / Número de Cuenta en 'usuarios'</label>
+                        <label class="block text-xs text-slate-400 mb-1" id="lbl-cuenta-cedula">Número de Cuenta</label>
                         <div class="flex gap-2">
                             <div class="relative flex-1">
-                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-id-card"></i></span>
-                                <input type="text" id="txt-cuenta" maxlength="50" placeholder="Ej: Ingrese cuenta o cédula" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-credit-card"></i></span>
+                                <input type="text" id="txt-cuenta" maxlength="50" placeholder="Ej: Ingrese número de cuenta" class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:border-emerald-500 font-mono">
                             </div>
-                            <button type="button" onclick="buscarUsuarioPorCuenta()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                            <button type="button" onclick="buscarUsuarioPorNumeroCuenta()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 rounded-lg text-xs font-bold transition flex items-center gap-1">
                                 <i class="fa-solid fa-magnifying-glass"></i> Buscar
                             </button>
                         </div>
-                        <p id="lbl-info-usuario" class="text-xs mt-1.5 text-slate-400 font-mono">Estado: Ingrese la cuenta y pulse Buscar.</p>
+                        <p id="lbl-info-usuario" class="text-xs mt-1.5 text-slate-400 font-mono">Estado: Ingrese el número de cuenta y pulse Buscar.</p>
                     </div>
 
                     <div>
@@ -217,7 +217,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ4f1wD8W3WOoZANRO5KvOJW2gfP_wwE",
@@ -312,6 +312,7 @@
         let operacionActual = '';
         let claveGeneradaSMS = '';
         let nombreTitularEncontrado = '';
+        let docIdEncontrado = ''; // Almacena el ID del documento en Firestore para actualizarlo luego
 
         function mostrarBarraEstado(mensaje, tipo) {
             const bar = document.getElementById('status-processing-bar');
@@ -348,7 +349,8 @@
             document.getElementById('txt-monto').value = '';
             document.getElementById('txt-clave-ingresada').value = '';
             nombreTitularEncontrado = '';
-            document.getElementById('lbl-info-usuario').textContent = "Estado: Ingrese la cuenta y pulse Buscar.";
+            docIdEncontrado = '';
+            document.getElementById('lbl-info-usuario').textContent = "Estado: Ingrese el número de cuenta y pulse Buscar.";
             document.getElementById('lbl-info-usuario').className = "text-xs mt-1.5 text-slate-400 font-mono";
             document.getElementById('contenedor-ingreso-clave').classList.add('hidden');
             document.getElementById('step-menu').classList.remove('hidden');
@@ -364,7 +366,7 @@
             const contenedorBusqueda = document.getElementById('contenedor-busqueda-cuenta');
             
             if (banco === 'CARBOWALLET') {
-                label.innerText = "Cédula / Número de Cuenta en 'usuarios'";
+                label.innerText = "Número de Cuenta";
                 contenedorBusqueda.style.display = "block";
             } else {
                 label.innerText = "Número de Cuenta (Otro Banco)";
@@ -372,32 +374,39 @@
             }
         }
 
-        // BÚSQUEDA DIRECTA POR NÚMERO DE CUENTA (SOLO LECTURA)
-        window.buscarUsuarioPorCuenta = async function() {
-            const cuentaInput = document.getElementById('txt-cuenta').value.trim();
+        // BÚSQUEDA MEDIANTE QUERY POR NÚMERO DE CUENTA EN LA COLECCIÓN 'usuarios'
+        window.buscarUsuarioPorNumeroCuenta = async function() {
+            const numeroCuentaInput = document.getElementById('txt-cuenta').value.trim();
             const infoLabel = document.getElementById('lbl-info-usuario');
 
-            if (!cuentaInput) {
-                infoLabel.textContent = "⚠️ Por favor ingrese un número de cuenta o cédula.";
+            if (!numeroCuentaInput) {
+                infoLabel.textContent = "⚠️ Por favor ingrese un número de cuenta.";
                 infoLabel.className = "text-xs mt-1.5 text-amber-400 font-mono";
                 return;
             }
 
             try {
-                infoLabel.textContent = "Buscando en la colección 'usuarios'...";
+                infoLabel.textContent = "Buscando número de cuenta en 'usuarios'...";
                 infoLabel.className = "text-xs mt-1.5 text-blue-400 font-mono";
 
-                const cuentaRef = doc(db, "usuarios", cuentaInput);
-                const cuentaSnap = await getDoc(cuentaRef);
+                // Realiza una consulta buscando el campo donde se almacena el número de cuenta 
+                // (puedes cambiar 'numeroCuenta' si en tu base de datos se llama distinto, ej: 'cuenta', 'accountNumber')
+                const q = query(collection(db, "usuarios"), where("numeroCuenta", "==", numeroCuentaInput));
+                const querySnapshot = await getDocs(q);
 
-                if (!cuentaSnap.exists()) {
-                    infoLabel.textContent = "❌ No existe ningún usuario con este número de cuenta/cédula.";
+                if (querySnapshot.empty) {
+                    infoLabel.textContent = "❌ No se encontró ninguna cuenta con ese número.";
                     infoLabel.className = "text-xs mt-1.5 text-red-400 font-mono";
                     nombreTitularEncontrado = '';
+                    docIdEncontrado = '';
                     return;
                 }
 
-                const data = cuentaSnap.data();
+                // Tomamos el primer documento que coincida
+                const docSnap = querySnapshot.docs[0];
+                docIdEncontrado = docSnap.id;
+                const data = docSnap.data();
+
                 nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || "Usuario sin nombre";
                 const saldoActual = data.saldo ?? 0.00;
 
@@ -405,8 +414,8 @@
                 infoLabel.className = "text-xs mt-1.5 text-emerald-400 font-mono";
 
             } catch (error) {
-                console.error("Error al buscar cuenta:", error);
-                infoLabel.textContent = "❌ Error de conexión al buscar el usuario.";
+                console.error("Error al buscar número de cuenta:", error);
+                infoLabel.textContent = "❌ Error de conexión al buscar la cuenta.";
                 infoLabel.className = "text-xs mt-1.5 text-red-400 font-mono";
             }
         }
@@ -429,7 +438,7 @@
                 return;
             }
 
-            if (banco === 'CARBOWALLET' && !nombreTitularEncontrado) {
+            if (banco === 'CARBOWALLET' && !docIdEncontrado) {
                 alert('Debe buscar y verificar el número de cuenta antes de continuar.');
                 return;
             }
@@ -469,23 +478,20 @@
                 try {
                     mostrarBarraEstado("Actualizando saldo en Firestore...", "proceso");
                     
-                    const cuentaRef = doc(db, "usuarios", cuentaInput);
-                    const cuentaSnap = await getDoc(cuentaRef);
-
-                    if (!cuentaSnap.exists()) {
-                        mostrarBarraEstado("Error: El usuario ya no existe", "error");
-                        return;
+                    // Actualiza utilizando el ID del documento encontrado mediante el número de cuenta
+                    const cuentaRef = doc(db, "usuarios", docIdEncontrado);
+                    
+                    // Modificación: Lectura rápida opcional para verificar saldo antes de restar en retiro
+                    if (operacionActual === 'RETIRO') {
+                        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js").then(async ({ getDoc }) => {
+                            const snap = await getDoc(cuentaRef);
+                            if (snap.exists() && (snap.data().saldo || 0) < monto) {
+                                mostrarBarraEstado("Error: Fondos insuficientes en la cuenta", "error");
+                                return;
+                            }
+                        });
                     }
 
-                    const data = cuentaSnap.data();
-                    const saldoActual = data.saldo || 0;
-
-                    if (operacionActual === 'RETIRO' && saldoActual < monto) {
-                        mostrarBarraEstado("Error: Fondos insuficientes en la cuenta", "error");
-                        return;
-                    }
-
-                    // Actualiza únicamente el saldo sin crear ningún documento nuevo
                     const cambioSaldo = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     await updateDoc(cuentaRef, { saldo: increment(cambioSaldo) });
 
