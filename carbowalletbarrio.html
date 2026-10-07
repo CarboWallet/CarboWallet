@@ -172,7 +172,7 @@
                 </div>
             </div>
 
-            <!-- Pantalla de Recibo / Voucher -->
+            <!-- Pantalla de Recibo / Voucher Recto y Alineado -->
             <div id="step-voucher" class="hidden space-y-4">
                 <div class="bg-white text-slate-900 p-5 rounded-xl shadow-inner font-mono text-xs space-y-2 relative border border-dashed border-slate-400">
                     <div class="text-center pb-2 border-b border-slate-300">
@@ -180,16 +180,16 @@
                         <p class="text-[10px] text-slate-600">Pedro Carbo, Guayas - Ecuador</p>
                         <p class="text-[10px] text-slate-600" id="voucher-fecha"></p>
                     </div>
-                    <div class="py-1 space-y-1">
-                        <div class="flex justify-between"><span>TRANSACCIÓN:</span> <strong id="v-tipo"></strong></div>
-                        <div class="flex justify-between"><span>ESTADO:</span> <span class="text-emerald-700 font-bold">APROBADO</span></div>
-                        <div class="flex justify-between"><span>AUTORIZACIÓN:</span> <span id="v-auth"></span></div>
-                        <div class="flex justify-between"><span>DESTINO:</span> <span id="v-banco-tipo"></span></div>
-                        <div class="flex justify-between"><span id="v-lbl-beneficiario">TITULAR REGISTRADO:</span> <strong id="v-beneficiario"></strong></div>
-                        <div class="flex justify-between"><span>CELULAR:</span> <span id="v-celular"></span></div>
+                    <div class="py-1 space-y-1.5">
+                        <div class="grid grid-cols-2 gap-2"><span>TRANSACCIÓN:</span> <strong id="v-tipo" class="text-right"></strong></div>
+                        <div class="grid grid-cols-2 gap-2"><span>ESTADO:</span> <span class="text-emerald-700 font-bold text-right">APROBADO</span></div>
+                        <div class="grid grid-cols-2 gap-2"><span>AUTORIZACIÓN:</span> <span id="v-auth" class="text-right"></span></div>
+                        <div class="grid grid-cols-2 gap-2"><span>DESTINO:</span> <span id="v-banco-tipo" class="text-right"></span></div>
+                        <div class="grid grid-cols-2 gap-2"><span id="v-lbl-beneficiario">TITULAR:</span> <strong id="v-beneficiario" class="text-right truncate"></strong></div>
+                        <div class="grid grid-cols-2 gap-2"><span>CELULAR:</span> <span id="v-celular" class="text-right"></span></div>
                     </div>
-                    <div class="border-t border-slate-300 pt-2 flex justify-between text-sm font-bold">
-                        <span>VALOR:</span> <span id="v-monto" class="text-emerald-800"></span>
+                    <div class="border-t border-slate-300 pt-2 grid grid-cols-2 gap-2 text-sm font-bold">
+                        <span>VALOR:</span> <span id="v-monto" class="text-emerald-800 text-right"></span>
                     </div>
                     <div class="text-center pt-3 text-[10px] text-slate-500 border-t border-slate-200">
                         ¡Corresponsal Autorizado Pedro Carbo!<br>Conserve este comprobante.
@@ -312,7 +312,7 @@
         let operacionActual = '';
         let claveGeneradaSMS = '';
         let nombreTitularEncontrado = '';
-        let docIdEncontrado = ''; // Almacena el ID del documento en Firestore para actualizarlo luego
+        let docIdEncontrado = '';
 
         function mostrarBarraEstado(mensaje, tipo) {
             const bar = document.getElementById('status-processing-bar');
@@ -389,8 +389,6 @@
                 infoLabel.textContent = "Buscando número de cuenta en 'usuarios'...";
                 infoLabel.className = "text-xs mt-1.5 text-blue-400 font-mono";
 
-                // Realiza una consulta buscando el campo donde se almacena el número de cuenta 
-                // (puedes cambiar 'numeroCuenta' si en tu base de datos se llama distinto, ej: 'cuenta', 'accountNumber')
                 const q = query(collection(db, "usuarios"), where("numeroCuenta", "==", numeroCuentaInput));
                 const querySnapshot = await getDocs(q);
 
@@ -402,7 +400,6 @@
                     return;
                 }
 
-                // Tomamos el primer documento que coincida
                 const docSnap = querySnapshot.docs[0];
                 docIdEncontrado = docSnap.id;
                 const data = docSnap.data();
@@ -478,10 +475,8 @@
                 try {
                     mostrarBarraEstado("Actualizando saldo en Firestore...", "proceso");
                     
-                    // Actualiza utilizando el ID del documento encontrado mediante el número de cuenta
                     const cuentaRef = doc(db, "usuarios", docIdEncontrado);
                     
-                    // Modificación: Lectura rápida opcional para verificar saldo antes de restar en retiro
                     if (operacionActual === 'RETIRO') {
                         import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js").then(async ({ getDoc }) => {
                             const snap = await getDoc(cuentaRef);
@@ -521,8 +516,8 @@
             document.getElementById('v-beneficiario').innerText = nombreTitularEncontrado;
 
             if (banco === 'CARBOWALLET') {
-                document.getElementById('v-banco-tipo').innerText = "CarboWallet (Colección 'usuarios')";
-                document.getElementById('v-lbl-beneficiario').innerText = "TITULAR REGISTRADO:";
+                document.getElementById('v-banco-tipo').innerText = "CUENTA DE AHORRO";
+                document.getElementById('v-lbl-beneficiario').innerText = "TITULAR:";
             } else {
                 document.getElementById('v-banco-tipo').innerText = "Otro Banco (Interbancario)";
                 document.getElementById('v-lbl-beneficiario').innerText = "CUENTA DESTINO:";
