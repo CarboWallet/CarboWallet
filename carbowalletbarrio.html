@@ -238,10 +238,6 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // BOT TOKEN DE TELEGRAM PROTEGIDO EN BASE64 PARA EVITAR Detección automática en GitHub
-        const _tb = "ODcyNjE1MjIzMDpBQUdLRTBZdGFsdGx1TDFhTDlRS3JwS2hlTmNqMnZibUV2WQ==";
-        const TELEGRAM_BOT_TOKEN = atob(_tb);
-
         // --- DETECCIÓN DE INTERNET ---
         function actualizarEstadoConexion() {
             const bar = document.getElementById('connection-bar');
@@ -472,7 +468,7 @@
             }
         }
 
-        // ENVIAR CÓDIGO AUTOMÁTICO VÍA TELEGRAM
+        // ENVIAR CÓDIGO AUTOMÁTICO VÍA TELEGRAM (TOKEN OBTENIDO DESDE FIRESTORE)
         window.enviarClaveTelegram = async function() {
             let chatId = document.getElementById('txt-telegram-chatid').value.trim() || telegramChatIdEncontrado;
 
@@ -481,12 +477,27 @@
                 return;
             }
 
-            claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
-            const monto = document.getElementById('txt-monto').value;
-            const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
-            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-
             try {
+                mostrarBarraEstado("Obteniendo configuración...", "proceso");
+
+                // 1. Lectura del token desde Firestore
+                const configRef = doc(db, "configuracion", "telegram");
+                const configSnap = await getDoc(configRef);
+
+                if (!configSnap.exists() || !configSnap.data().botToken) {
+                    mostrarBarraEstado("Error: Token de Telegram no configurado en la base de datos.", "error");
+                    alert("No se encontró el botToken en la colección 'configuracion/telegram' de Firestore.");
+                    return;
+                }
+
+                const tokenDesdeBD = configSnap.data().botToken.trim();
+
+                // 2. Generación del código de 6 dígitos y envío por Telegram
+                claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
+                const monto = document.getElementById('txt-monto').value;
+                const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
+                const url = `https://api.telegram.org/bot${tokenDesdeBD}/sendMessage`;
+
                 mostrarBarraEstado("Enviando clave por Telegram...", "proceso");
                 const res = await fetch(url, {
                     method: 'POST',
@@ -508,8 +519,8 @@
                 }
             } catch(e) {
                 console.error(e);
-                mostrarBarraEstado("Error de conexión con Telegram.", "error");
-                alert("Error de conexión con Telegram: " + e.message);
+                mostrarBarraEstado("Error de conexión con Telegram o Firestore.", "error");
+                alert("Error en la operación: " + e.message);
             }
         }
 
