@@ -461,42 +461,42 @@
         }
 
         // ENVIAR CÓDIGO AUTOMÁTICO VÍA TELEGRAM
-        window.enviarClaveTelegram = async function() {
-            if(!telegramChatIdEncontrado) {
-                alert("⚠️ El usuario no tiene registrado un 'telegramChatId' en su cuenta de la base de datos.");
-                return;
-            }
+window.enviarClaveTelegram = async function() {
+    // Si no lo encuentra en el usuario, usa tu ID de prueba directamente:
+    const chatId = telegramChatIdEncontrado || "8754755438";
 
-            claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
-            const monto = document.getElementById('txt-monto').value;
-            const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
-            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
+    const monto = document.getElementById('txt-monto').value || "0.00";
+    const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
-            try {
-                mostrarBarraEstado("Enviando clave por Telegram...", "proceso");
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: telegramChatIdEncontrado,
-                        text: mensaje,
-                        parse_mode: 'Markdown'
-                    })
-                });
+    try {
+        mostrarBarraEstado("Enviando clave por Telegram...", "proceso");
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: mensaje,
+                parse_mode: 'Markdown'
+            })
+        });
 
-                const data = await res.json();
-                if(data.ok) {
-                    mostrarBarraEstado("¡Código enviado al Telegram del cliente!", "exito");
-                    document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
-                } else {
-                    mostrarBarraEstado("Error al enviar el mensaje por Telegram.", "error");
-                    alert("No se pudo enviar el mensaje. Asegúrate de que el usuario haya iniciado el bot @CarboWalletBarrioBot en su Telegram.");
-                }
-            } catch(e) {
-                console.error(e);
-                mostrarBarraEstado("Error de conexión con Telegram.", "error");
-            }
+        const data = await res.json();
+        if(data.ok) {
+            mostrarBarraEstado("¡Código enviado al Telegram del cliente!", "exito");
+            document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
+        } else {
+            mostrarBarraEstado("Error al enviar el mensaje por Telegram.", "error");
+            // MUESTRA EL ERROR REAL DE TELEGRAM EN PANTALLA:
+            alert(`Error de Telegram (${data.error_code}): ${data.description}`);
         }
+    } catch(e) {
+        console.error(e);
+        mostrarBarraEstado("Error de conexión con Telegram.", "error");
+        alert("Error de red al conectar con Telegram: " + e.message);
+    }
+}
 
         window.verificarClaveRetiro = function() {
             const ingresada = document.getElementById('txt-clave-ingresada').value;
