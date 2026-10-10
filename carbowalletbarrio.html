@@ -152,18 +152,13 @@
                 </button>
             </div>
 
-            <!-- Paso Especial Exclusivo para RETIROS (Código por Bot de Telegram) -->
+            <!-- Paso Especial Exclusivo para RETIROS (Automático por Telegram) -->
             <div id="step-retiro-sms" class="hidden space-y-4 text-center">
                 <div class="bg-slate-900 p-4 rounded-xl border border-sky-500/50 space-y-3">
                     <div class="text-sky-400 text-2xl"><i class="fa-paper-plane fa-solid"></i></div>
                     <h3 class="font-bold text-sm text-slate-200">Verificación por Bot de Telegram</h3>
-                    <p class="text-xs text-slate-400">Ingresa el <strong>Telegram Chat ID</strong> del cliente para enviarle el código a su chat con <strong>@CarboWalletBarrioBot</strong>.</p>
+                    <p class="text-xs text-slate-400">Presiona el botón para enviar automáticamente la clave de verificación al Telegram de <strong>@CarboWalletBarrioBot</strong> del titular.</p>
                     
-                    <div class="text-left space-y-1">
-                        <label class="block text-[11px] text-slate-400">Telegram Chat ID del Cliente:</label>
-                        <input type="text" id="txt-telegram-chatid" placeholder="Ej: 123456789" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-sky-400 focus:outline-none focus:border-sky-500 font-mono">
-                    </div>
-
                     <button onclick="enviarClaveTelegram()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-2.5 px-4 rounded-lg transition w-full flex items-center justify-center gap-2">
                         <i class="fa-solid fa-paper-plane"></i> Enviar Clave por Telegram
                     </button>
@@ -238,10 +233,10 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // CONFIGURACIÓN BOT TELEGRAM
+        // BOT DE TELEGRAM
         const TELEGRAM_BOT_TOKEN = "8726152230:AAHrwfziAhknpY4Lq9UBJrg0P2JjYV7Tb-Kg";
 
-        // --- SISTEMA DE DETECCIÓN DE CONEXIÓN A INTERNET ---
+        // --- DETECCIÓN DE INTERNET ---
         function actualizarEstadoConexion() {
             const bar = document.getElementById('connection-bar');
             const icon = document.getElementById('conn-icon');
@@ -262,7 +257,7 @@
         window.addEventListener('offline', actualizarEstadoConexion);
         actualizarEstadoConexion();
 
-        // --- VALIDACIÓN DE DISPOSITIVO Y AUTENTICACIÓN ---
+        // --- VALIDACIÓN DISPOSITIVO Y AUTH ---
         window.addEventListener('DOMContentLoaded', () => {
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
             const isAndroidDevice = /android/i.test(userAgent);
@@ -317,12 +312,13 @@
             await signOut(auth);
         }
 
-        // --- LÓGICA DE OPERACIONES Y BÚSQUEDA ---
+        // --- LÓGICA DE OPERACIONES ---
         let operacionActual = '';
         let claveGeneradaSMS = '';
         let nombreTitularEncontrado = '';
         let correoTitularEncontrado = '';
         let docIdEncontrado = '';
+        let telegramChatIdEncontrado = '';
 
         function mostrarBarraEstado(mensaje, tipo) {
             const bar = document.getElementById('status-processing-bar');
@@ -358,10 +354,10 @@
             document.getElementById('txt-celular').value = '';
             document.getElementById('txt-monto').value = '';
             document.getElementById('txt-clave-ingresada').value = '';
-            document.getElementById('txt-telegram-chatid').value = '';
             nombreTitularEncontrado = '';
             correoTitularEncontrado = '';
             docIdEncontrado = '';
+            telegramChatIdEncontrado = '';
             document.getElementById('lbl-info-usuario').textContent = "Estado: Ingrese el número de cuenta y pulse Buscar.";
             document.getElementById('lbl-info-usuario').className = "text-xs mt-1.5 text-slate-400 font-mono";
             document.getElementById('contenedor-ingreso-clave').classList.add('hidden');
@@ -386,7 +382,7 @@
             }
         }
 
-        // BÚSQUEDA MEDIANTE QUERY POR NÚMERO DE CUENTA EN LA COLECCIÓN 'usuarios'
+        // BÚSQUEDA MEDIANTE QUERY POR NÚMERO DE CUENTA
         window.buscarUsuarioPorNumeroCuenta = async function() {
             const numeroCuentaInput = document.getElementById('txt-cuenta').value.trim();
             const infoLabel = document.getElementById('lbl-info-usuario');
@@ -410,6 +406,7 @@
                     nombreTitularEncontrado = '';
                     correoTitularEncontrado = '';
                     docIdEncontrado = '';
+                    telegramChatIdEncontrado = '';
                     return;
                 }
 
@@ -419,6 +416,7 @@
 
                 nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || "Usuario sin nombre";
                 correoTitularEncontrado = data.email || "Sin correo";
+                telegramChatIdEncontrado = data.telegramChatId || data.chatId || data.telegramId || '';
                 const saldoActual = data.saldo ?? 0.00;
 
                 infoLabel.innerHTML = `✅ Titular: <strong class="text-white">${nombreTitularEncontrado}</strong> | Saldo: <span class="text-emerald-400">$${saldoActual.toFixed(2)}</span>`;
@@ -462,25 +460,25 @@
             }
         }
 
-        // ENVIAR CÓDIGO MEDIANTE TELEGRAM
+        // ENVIAR CÓDIGO AUTOMÁTICO VÍA TELEGRAM
         window.enviarClaveTelegram = async function() {
-            const chatId = document.getElementById('txt-telegram-chatid').value.trim();
-            if(!chatId) {
-                alert("Por favor ingresa el Telegram Chat ID del cliente.");
+            if(!telegramChatIdEncontrado) {
+                alert("⚠️ El usuario no tiene registrado un 'telegramChatId' en su cuenta de la base de datos.");
                 return;
             }
 
             claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
-            const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${document.getElementById('txt-monto').value}* es: *${claveGeneradaSMS}*`;
+            const monto = document.getElementById('txt-monto').value;
+            const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
             const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
             try {
-                mostrarBarraEstado("Enviando código por Telegram...", "proceso");
+                mostrarBarraEstado("Enviando clave por Telegram...", "proceso");
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        chat_id: chatId,
+                        chat_id: telegramChatIdEncontrado,
                         text: mensaje,
                         parse_mode: 'Markdown'
                     })
@@ -491,8 +489,8 @@
                     mostrarBarraEstado("¡Código enviado al Telegram del cliente!", "exito");
                     document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
                 } else {
-                    mostrarBarraEstado("Error al enviar por Telegram. Verifique el Chat ID.", "error");
-                    alert("Error al enviar el mensaje. Asegúrate de que el cliente haya iniciado un chat con @CarboWalletBarrioBot en Telegram.");
+                    mostrarBarraEstado("Error al enviar el mensaje por Telegram.", "error");
+                    alert("No se pudo enviar el mensaje. Asegúrate de que el usuario haya iniciado el bot @CarboWalletBarrioBot en su Telegram.");
                 }
             } catch(e) {
                 console.error(e);
@@ -539,7 +537,7 @@
                     const cambioSaldo = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     await updateDoc(cuentaRef, { saldo: increment(cambioSaldo) });
 
-                    // 2. Registra el movimiento en la colección 'transacciones' para que aparezca en la banca web del usuario
+                    // 2. Registra el movimiento en 'transacciones' para que se refleje en la banca web del usuario
                     const montoFinalTransaccion = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     const tituloTransaccion = (operacionActual === 'DEPOSITO') ? "Depósito en Corresponsal Barrio" : "Retiro en Corresponsal Barrio";
 
