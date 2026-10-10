@@ -60,7 +60,7 @@
         <div class="bg-emerald-600 px-6 py-4 flex justify-between items-center border-b border-emerald-700">
             <div>
                 <h1 class="font-bold text-lg tracking-wide flex items-center gap-2">
-                    <i class="fa-solid fa-store"></i> CARBO WALLET BARRIO
+                    <i class="fa-solid fa-store"></i> CARBOWALLET BARRIO
                 </h1>
                 <p class="text-xs text-emerald-100">Terminal Android - Pedro Carbo</p>
             </div>
@@ -152,19 +152,25 @@
                 </button>
             </div>
 
-            <!-- Paso Especial Exclusivo para RETIROS (Clave Temporal por SMS) -->
+            <!-- Paso Especial Exclusivo para RETIROS (Código por Bot de Telegram) -->
             <div id="step-retiro-sms" class="hidden space-y-4 text-center">
-                <div class="bg-slate-900 p-4 rounded-xl border border-amber-500/50 space-y-3">
-                    <div class="text-amber-400 text-2xl"><i class="fa-solid fa-shield-halved"></i></div>
-                    <h3 class="font-bold text-sm text-slate-200">Verificación de Retiro por Código</h3>
-                    <p class="text-xs text-slate-400">El dueño de la tienda debe generar la clave temporal de 6 dígitos para enviarla al celular registrado del cliente.</p>
-                    <button onclick="enviarClaveSMS()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-2 px-4 rounded-lg transition">
-                        <i class="fa-solid fa-paper-plane mr-1"></i> Enviar Clave de 6 Dígitos al Celular
+                <div class="bg-slate-900 p-4 rounded-xl border border-sky-500/50 space-y-3">
+                    <div class="text-sky-400 text-2xl"><i class="fa-paper-plane fa-solid"></i></div>
+                    <h3 class="font-bold text-sm text-slate-200">Verificación por Bot de Telegram</h3>
+                    <p class="text-xs text-slate-400">Ingresa el <strong>Telegram Chat ID</strong> del cliente para enviarle el código a su chat con <strong>@CarboWalletBarrioBot</strong>.</p>
+                    
+                    <div class="text-left space-y-1">
+                        <label class="block text-[11px] text-slate-400">Telegram Chat ID del Cliente:</label>
+                        <input type="text" id="txt-telegram-chatid" placeholder="Ej: 123456789" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-sky-400 focus:outline-none focus:border-sky-500 font-mono">
+                    </div>
+
+                    <button onclick="enviarClaveTelegram()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-2.5 px-4 rounded-lg transition w-full flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i> Enviar Clave por Telegram
                     </button>
                 </div>
 
                 <div id="contenedor-ingreso-clave" class="hidden space-y-3">
-                    <label class="block text-xs text-slate-400">Ingrese la clave de 6 dígitos recibida por el cliente:</label>
+                    <label class="block text-xs text-slate-400">Ingrese la clave de 6 dígitos enviada al Telegram del cliente:</label>
                     <input type="text" id="txt-clave-ingresada" maxlength="6" placeholder="------" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 text-center text-xl tracking-widest font-mono text-amber-400 focus:outline-none focus:border-amber-500">
                     <button onclick="verificarClaveRetiro()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition">
                         Confirmar Clave y Retirar
@@ -231,6 +237,9 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+
+        // CONFIGURACIÓN BOT TELEGRAM
+        const TELEGRAM_BOT_TOKEN = "8726152230:AAHrwfziAhknpY4Lq9UBJrg0P2JjYV7Tb-Kg";
 
         // --- SISTEMA DE DETECCIÓN DE CONEXIÓN A INTERNET ---
         function actualizarEstadoConexion() {
@@ -349,6 +358,7 @@
             document.getElementById('txt-celular').value = '';
             document.getElementById('txt-monto').value = '';
             document.getElementById('txt-clave-ingresada').value = '';
+            document.getElementById('txt-telegram-chatid').value = '';
             nombreTitularEncontrado = '';
             correoTitularEncontrado = '';
             docIdEncontrado = '';
@@ -452,11 +462,42 @@
             }
         }
 
-        window.enviarClaveSMS = function() {
-            const celular = document.getElementById('txt-celular').value;
+        // ENVIAR CÓDIGO MEDIANTE TELEGRAM
+        window.enviarClaveTelegram = async function() {
+            const chatId = document.getElementById('txt-telegram-chatid').value.trim();
+            if(!chatId) {
+                alert("Por favor ingresa el Telegram Chat ID del cliente.");
+                return;
+            }
+
             claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
-            alert(`[SIMULACIÓN SMS] Clave temporal enviada al celular ${celular}\n(Clave de prueba: ${claveGeneradaSMS})`);
-            document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
+            const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${document.getElementById('txt-monto').value}* es: *${claveGeneradaSMS}*`;
+            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+            try {
+                mostrarBarraEstado("Enviando código por Telegram...", "proceso");
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: mensaje,
+                        parse_mode: 'Markdown'
+                    })
+                });
+
+                const data = await res.json();
+                if(data.ok) {
+                    mostrarBarraEstado("¡Código enviado al Telegram del cliente!", "exito");
+                    document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
+                } else {
+                    mostrarBarraEstado("Error al enviar por Telegram. Verifique el Chat ID.", "error");
+                    alert("Error al enviar el mensaje. Asegúrate de que el cliente haya iniciado un chat con @CarboWalletBarrioBot en Telegram.");
+                }
+            } catch(e) {
+                console.error(e);
+                mostrarBarraEstado("Error de conexión con Telegram.", "error");
+            }
         }
 
         window.verificarClaveRetiro = function() {
