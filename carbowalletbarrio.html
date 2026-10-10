@@ -152,13 +152,18 @@
                 </button>
             </div>
 
-            <!-- Paso Especial Exclusivo para RETIROS (Automático por Telegram) -->
+            <!-- Paso Especial Exclusivo para RETIROS (Por Bot de Telegram) -->
             <div id="step-retiro-sms" class="hidden space-y-4 text-center">
                 <div class="bg-slate-900 p-4 rounded-xl border border-sky-500/50 space-y-3">
                     <div class="text-sky-400 text-2xl"><i class="fa-paper-plane fa-solid"></i></div>
                     <h3 class="font-bold text-sm text-slate-200">Verificación por Bot de Telegram</h3>
-                    <p class="text-xs text-slate-400">Presiona el botón para enviar automáticamente la clave de verificación al Telegram de <strong>@CarboWalletBarrioBot</strong> del titular.</p>
+                    <p class="text-xs text-slate-400">Presiona para enviar la clave de verificación al Telegram de <strong>@CarboWalletBarrioBot</strong>.</p>
                     
+                    <div class="text-left space-y-1">
+                        <label class="block text-[11px] text-slate-400">Telegram Chat ID del Cliente:</label>
+                        <input type="text" id="txt-telegram-chatid" placeholder="Ej: 8754755438" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-sky-400 focus:outline-none focus:border-sky-500 font-mono">
+                    </div>
+
                     <button onclick="enviarClaveTelegram()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-2.5 px-4 rounded-lg transition w-full flex items-center justify-center gap-2">
                         <i class="fa-solid fa-paper-plane"></i> Enviar Clave por Telegram
                     </button>
@@ -233,8 +238,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // BOT DE TELEGRAM
-        const TELEGRAM_BOT_TOKEN = "8726152230:AAHrwfziAhknpY4Lq9UBJrg0P2JjYV7Tb-Kg";
+        // NUEVO BOT TOKEN DE TELEGRAM (ACTIVO)
+        const TELEGRAM_BOT_TOKEN = "8726152230:AAHdBUD_GFcXZyNpF45u3u5GP9IQeksLa0U";
 
         // --- DETECCIÓN DE INTERNET ---
         function actualizarEstadoConexion() {
@@ -354,6 +359,7 @@
             document.getElementById('txt-celular').value = '';
             document.getElementById('txt-monto').value = '';
             document.getElementById('txt-clave-ingresada').value = '';
+            document.getElementById('txt-telegram-chatid').value = '';
             nombreTitularEncontrado = '';
             correoTitularEncontrado = '';
             docIdEncontrado = '';
@@ -417,6 +423,11 @@
                 nombreTitularEncontrado = data.nombre || data.titular || data.userName || data.nombres || "Usuario sin nombre";
                 correoTitularEncontrado = data.email || "Sin correo";
                 telegramChatIdEncontrado = data.telegramChatId || data.chatId || data.telegramId || '';
+                
+                if (telegramChatIdEncontrado) {
+                    document.getElementById('txt-telegram-chatid').value = telegramChatIdEncontrado;
+                }
+
                 const saldoActual = data.saldo ?? 0.00;
 
                 infoLabel.innerHTML = `✅ Titular: <strong class="text-white">${nombreTitularEncontrado}</strong> | Saldo: <span class="text-emerald-400">$${saldoActual.toFixed(2)}</span>`;
@@ -461,42 +472,45 @@
         }
 
         // ENVIAR CÓDIGO AUTOMÁTICO VÍA TELEGRAM
-window.enviarClaveTelegram = async function() {
-    // Si no lo encuentra en el usuario, usa tu ID de prueba directamente:
-    const chatId = telegramChatIdEncontrado || "8754755438";
+        window.enviarClaveTelegram = async function() {
+            let chatId = document.getElementById('txt-telegram-chatid').value.trim() || telegramChatIdEncontrado;
 
-    claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
-    const monto = document.getElementById('txt-monto').value || "0.00";
-    const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+            if(!chatId) {
+                alert("Por favor ingrese el Telegram Chat ID del cliente para enviarle el código.");
+                return;
+            }
 
-    try {
-        mostrarBarraEstado("Enviando clave por Telegram...", "proceso");
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: mensaje,
-                parse_mode: 'Markdown'
-            })
-        });
+            claveGeneradaSMS = Math.floor(100000 + Math.random() * 900000);
+            const monto = document.getElementById('txt-monto').value;
+            const mensaje = `🔒 *CarboWallet Barrio*\nTu código de verificación para el retiro de *$${monto}* es: *${claveGeneradaSMS}*`;
+            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
-        const data = await res.json();
-        if(data.ok) {
-            mostrarBarraEstado("¡Código enviado al Telegram del cliente!", "exito");
-            document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
-        } else {
-            mostrarBarraEstado("Error al enviar el mensaje por Telegram.", "error");
-            // MUESTRA EL ERROR REAL DE TELEGRAM EN PANTALLA:
-            alert(`Error de Telegram (${data.error_code}): ${data.description}`);
+            try {
+                mostrarBarraEstado("Enviando clave por Telegram...", "proceso");
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: mensaje,
+                        parse_mode: 'Markdown'
+                    })
+                });
+
+                const data = await res.json();
+                if(data.ok) {
+                    mostrarBarraEstado("¡Código enviado al Telegram del cliente!", "exito");
+                    document.getElementById('contenedor-ingreso-clave').classList.remove('hidden');
+                } else {
+                    mostrarBarraEstado("Error al enviar el mensaje por Telegram.", "error");
+                    alert(`Error de Telegram (${data.error_code}): ${data.description}`);
+                }
+            } catch(e) {
+                console.error(e);
+                mostrarBarraEstado("Error de conexión con Telegram.", "error");
+                alert("Error de conexión con Telegram: " + e.message);
+            }
         }
-    } catch(e) {
-        console.error(e);
-        mostrarBarraEstado("Error de conexión con Telegram.", "error");
-        alert("Error de red al conectar con Telegram: " + e.message);
-    }
-}
 
         window.verificarClaveRetiro = function() {
             const ingresada = document.getElementById('txt-clave-ingresada').value;
@@ -537,7 +551,7 @@ window.enviarClaveTelegram = async function() {
                     const cambioSaldo = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     await updateDoc(cuentaRef, { saldo: increment(cambioSaldo) });
 
-                    // 2. Registra el movimiento en 'transacciones' para que se refleje en la banca web del usuario
+                    // 2. Registra el movimiento en 'transacciones'
                     const montoFinalTransaccion = (operacionActual === 'DEPOSITO') ? monto : -monto;
                     const tituloTransaccion = (operacionActual === 'DEPOSITO') ? "Depósito en Corresponsal Barrio" : "Retiro en Corresponsal Barrio";
 
